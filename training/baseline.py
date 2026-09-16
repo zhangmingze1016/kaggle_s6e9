@@ -2,6 +2,7 @@ import pandas as pd
 from catboost import CatBoostClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
+from pathlib import Path
 
 # Load the training data
 train = pd.read_csv("data/train.csv")   
@@ -14,7 +15,7 @@ TARGET = "Will_Buy_EV"
 X = train.drop(columns=[TARGET, "id"])
 y = train[TARGET]
 
-X_test = train.drop(columns= ["id"])
+X_test = test.drop(columns= ["id"])
 
 #find categorical columns
 
@@ -75,9 +76,22 @@ final_model.fit(
 
 test_pred = final_model.predict(X_test).ravel()
 
+submission = pd.DataFrame({
+    "id": test["id"],
+    "Will_Buy_EV": test_pred
+})
 
+PREDICTION_DIR = Path("predictions")
+PREDICTION_DIR.mkdir(exist_ok=True)
 
+existing = list(PREDICTION_DIR.glob("prediction_v*.csv"))
+version = len(existing) + 1
 
+filename = (
+    PREDICTION_DIR
+    / f"prediction_v{version:03d}_acc_{accuracy:.5f}.csv"
+)
 
+submission.to_csv(filename, index=False)
 
-
+print(f"Saved: {filename}")

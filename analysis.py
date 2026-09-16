@@ -1,7 +1,7 @@
 import pandas as pd
 
 # First 1000 rows: inspect the structure quickly
-train = pd.read_csv("data/train.csv", nrows=1000)
+train = pd.read_csv("data/train.csv")
 
 print("Train shape:", train.shape)
 
