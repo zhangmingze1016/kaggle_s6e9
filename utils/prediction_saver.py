@@ -38,6 +38,64 @@ class PredictionSaver:
         version_name = f"v{version:03d}"
 
         # ---------------------------------
+        # Model name
+        # ---------------------------------
+
+        model_name = params.get("model", "model")
+
+        model_short = {
+            "CatBoost": "cb",
+            "XGBoost": "xgb",
+            "LightGBM": "lgbm"
+        }.get(model_name, model_name.lower())
+
+        # ---------------------------------
+        # Build filename
+        # ---------------------------------
+
+        filename_parts = [
+            f"prediction_{version_name}",
+            model_short
+        ]
+
+        # CatBoost / common parameters
+        if "depth" in params:
+            filename_parts.append(
+                f"d{params['depth']}"
+            )
+
+        # XGBoost uses max_depth
+        elif "max_depth" in params:
+            filename_parts.append(
+                f"d{params['max_depth']}"
+            )
+
+        if "learning_rate" in params:
+            filename_parts.append(
+                f"lr{params['learning_rate']}"
+            )
+
+        if "iterations" in params:
+            filename_parts.append(
+                f"iter{params['iterations']}"
+            )
+
+        # XGBoost commonly uses n_estimators
+        elif "n_estimators" in params:
+            filename_parts.append(
+                f"iter{params['n_estimators']}"
+            )
+
+        filename_parts.append(
+            f"auc_{score:.5f}"
+        )
+
+        filename = (
+            self.output_dir
+            / ("_".join(filename_parts) + ".csv")
+        )
+
+        # ---------------------------------
         # Save Kaggle prediction
         # ---------------------------------
 
@@ -45,18 +103,6 @@ class PredictionSaver:
             "id": ids,
             target: predictions
         })
-
-        filename = (
-    self.output_dir
-    / (
-        f"prediction_{version_name}"
-        f"_cb"
-        f"_d{params['depth']}"
-        f"_lr{params['learning_rate']}"
-        f"_iter{params['iterations']}"
-        f"_auc_{score:.5f}.csv"
-    )
-)
 
         predictions_df.to_csv(
             filename,
@@ -76,11 +122,19 @@ class PredictionSaver:
         }
 
         if best_iterations is not None:
-            experiment["mean_best_iteration"] = (
-                sum(best_iterations) / len(best_iterations)
+
+            experiment["best_iterations"] = ",".join(
+                map(str, best_iterations)
             )
 
-        experiment_df = pd.DataFrame([experiment])
+            experiment["mean_best_iteration"] = (
+                sum(best_iterations)
+                / len(best_iterations)
+            )
+
+        experiment_df = pd.DataFrame(
+            [experiment]
+        )
 
         # ---------------------------------
         # Append to experiments.csv
@@ -109,6 +163,7 @@ class PredictionSaver:
         print("\nExperiment Saved")
         print("==============================")
         print(f"Version:    {version_name}")
+        print(f"Model:      {model_name}")
         print(f"Prediction: {filename}")
         print(f"OOF AUC:    {score:.5f}")
 

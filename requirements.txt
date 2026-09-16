@@ -16,3 +16,4 @@ urllib3==2.7.0
 catboost==1.2.10
 scikit-learn==1.9.1
 pathlib==1.0.1
+xgboost==3.4.1
