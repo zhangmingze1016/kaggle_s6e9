@@ -1,6 +1,6 @@
 import pandas as pd
 
-class EVData_Loader:
+class EVDataLoader:
 
     def __init__(
             self,
