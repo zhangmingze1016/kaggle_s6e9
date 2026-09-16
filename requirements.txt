@@ -13,3 +13,5 @@ requests==2.34.2
 six==1.17.0
 tqdm==4.70.1
 urllib3==2.7.0
+catboost==1.2.10
+scikit-learn==1.9.1
