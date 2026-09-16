@@ -1,0 +1,2 @@
+version,model,iterations,depth,learning_rate,early_stopping_rounds,n_splits,random_seed,oof_auc,fold_mean_auc,fold_std_auc,mean_best_iteration
+v005,CatBoost,3000,5,0.05,200,5,42,0.9419008058312311,0.9419079757435476,0.0007467204048391341,2391.2

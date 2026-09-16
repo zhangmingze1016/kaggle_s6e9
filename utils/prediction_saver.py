@@ -1,28 +1,121 @@
 from pathlib import Path
 import pandas as pd
 
+
 class PredictionSaver:
 
-    def __init__(self, output_dir = "predictions"):
+    def __init__(
+        self,
+        output_dir="predictions",
+        experiment_file="experiments.csv"
+    ):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def save(self, ids, predictions, score, target = "Will_Buy_EV"):
+        self.experiment_file = Path(experiment_file)
+
+    def save(
+        self,
+        ids,
+        predictions,
+        score,
+        params,
+        fold_mean=None,
+        fold_std=None,
+        best_iterations=None,
+        target="Will_Buy_EV"
+    ):
+
+        # ---------------------------------
+        # Version
+        # ---------------------------------
+
         existing = list(
             self.output_dir.glob("prediction_v*.csv")
         )
 
         version = len(existing) + 1
+        version_name = f"v{version:03d}"
 
-        predictions_df = pd.DataFrame({"id" : ids, target : predictions})
+        # ---------------------------------
+        # Save Kaggle prediction
+        # ---------------------------------
+
+        predictions_df = pd.DataFrame({
+            "id": ids,
+            target: predictions
+        })
 
         filename = (
-            self.output_dir 
-            / f"prediction_v{version:03d}_auc_{score: 5f}.csv")
+    self.output_dir
+    / (
+        f"prediction_{version_name}"
+        f"_cb"
+        f"_d{params['depth']}"
+        f"_lr{params['learning_rate']}"
+        f"_iter{params['iterations']}"
+        f"_auc_{score:.5f}.csv"
+    )
+)
 
-        predictions_df.to_csv(filename, index = False)
+        predictions_df.to_csv(
+            filename,
+            index=False
+        )
 
-        print(f"Saved prediction: {filename}")
+        # ---------------------------------
+        # Experiment information
+        # ---------------------------------
+
+        experiment = {
+            "version": version_name,
+            **params,
+            "oof_auc": score,
+            "fold_mean_auc": fold_mean,
+            "fold_std_auc": fold_std,
+        }
+
+        if best_iterations is not None:
+            experiment["mean_best_iteration"] = (
+                sum(best_iterations) / len(best_iterations)
+            )
+
+        experiment_df = pd.DataFrame([experiment])
+
+        # ---------------------------------
+        # Append to experiments.csv
+        # ---------------------------------
+
+        if self.experiment_file.exists():
+
+            experiment_df.to_csv(
+                self.experiment_file,
+                mode="a",
+                header=False,
+                index=False
+            )
+
+        else:
+
+            experiment_df.to_csv(
+                self.experiment_file,
+                index=False
+            )
+
+        # ---------------------------------
+        # Output
+        # ---------------------------------
+
+        print("\nExperiment Saved")
+        print("==============================")
+        print(f"Version:    {version_name}")
+        print(f"Prediction: {filename}")
+        print(f"OOF AUC:    {score:.5f}")
+
+        print("\nParameters")
+        print("==============================")
+
+        for key, value in params.items():
+            print(f"{key}: {value}")
 
         return filename
-            
