@@ -1,257 +1,149 @@
 # Kaggle Playground Series S6E9
 
-Machine learning project for the Kaggle Playground Series Season 6, Episode 9 competition.
+Machine learning project for the **Kaggle Playground Series - Season 6, Episode 9** classification competition.
 
-The goal of this project is to predict the probability that a customer will purchase an electric vehicle (EV).
+The objective is to predict the probability that a customer will purchase an electric vehicle (EV).
 
-## Competition
+- **Problem:** Binary Classification
+- **Target:** `Will_Buy_EV`
+- **Evaluation Metric:** ROC AUC
 
-**Target:** `Will_Buy_EV`
-
-**Evaluation Metric:** ROC AUC
-
-Because the competition is evaluated using ROC AUC, models output the predicted probability of the positive class (`Yes`) rather than binary class predictions.
+This repository contains the data pipeline, model training code, cross-validation framework, and prediction utilities used for the competition.
 
 ---
 
-## Current Results
+## Installation
 
-| Experiment | Validation | Local ROC AUC | Public LB |
-|---|---|---:|---:|
-| CatBoost Baseline | 80/20 Stratified Split | 0.94110 | 0.94083 |
-| CatBoost CV | 5-Fold Stratified CV | In Progress | - |
-| LightGBM CV | 5-Fold Stratified CV | Planned | - |
-| XGBoost CV | 5-Fold Stratified CV | Planned | - |
-| Ensemble | OOF-based | Planned | - |
+### 1. Clone the repository
 
-The initial CatBoost baseline achieved a local ROC AUC of **0.94110** and a Kaggle Public Leaderboard score of **0.94083**.
-
----
-
-## Project Structure
-
-```text
-kaggle_s6e9/
-├── data/
-│   ├── train.csv
-│   ├── test.csv
-│   └── sample_submission.csv
-│
-├── predictions/
-│   └── prediction_vXXX_auc_XXXXX.csv
-│
-├── training/
-│   ├── __init__.py
-│   ├── baseline.py
-│   └── catboost_cv.py
-│
-├── utils/
-│   ├── __init__.py
-│   ├── data_loader.py
-│   └── prediction_saver.py
-│
-├── analysis.py
-├── requirements.txt
-├── .gitignore
-└── README.md
+```bash
+git clone https://github.com/zhangmingze1016/kaggle_s6e9
+cd kaggle_competition1
 ```
 
-### `data/`
+### 2. Create a virtual environment
 
-Contains the competition training data, test data, and sample submission.
+```bash
+python -m venv .venv
+```
 
-### `training/`
+Activate the environment.
 
-Contains model training and validation scripts.
+**macOS / Linux**
 
-- `baseline.py` — initial CatBoost baseline using a single train-validation split
-- `catboost_cv.py` — CatBoost with 5-fold stratified cross-validation
+```bash
+source .venv/bin/activate
+```
 
-Additional model experiments will be added here.
+**Windows**
 
-### `utils/`
+```bash
+.venv\Scripts\activate
+```
 
-Contains reusable components shared by different model experiments.
+### 3. Install dependencies
 
-- `data_loader.py` — centralized data loading and feature preparation
-- `prediction_saver.py` — standardized prediction and submission file generation
+```bash
+pip install -r requirements.txt
+```
 
-### `predictions/`
+The competition dataset is included in the `data/` directory, so no additional data download is required.
 
-Contains generated test-set predictions.
+---
 
-Prediction files are automatically versioned and include the corresponding local ROC AUC score in the filename.
+## Usage
 
-Example:
+All commands should be executed from the project root directory.
+
+### Run the CatBoost baseline
+
+```bash
+python -m training.baseline
+```
+
+### Run CatBoost 5-fold cross-validation
+
+```bash
+python -m training.catboost_cv
+```
+
+Generated predictions are automatically saved to:
 
 ```text
-prediction_v003_auc_0.94150.csv
+predictions/
 ```
 
 ---
 
-# Methodology
+## Input
 
-## 1. Data Pipeline
-
-Data loading and basic feature preparation are centralized in the `EVDataLoader` class located in:
+The input datasets are stored in:
 
 ```text
-utils/data_loader.py
+data/
+├── train.csv
+├── test.csv
+└── sample_submission.csv
 ```
 
-The loader is responsible for:
+### Training Data
 
-- Loading `train.csv` and `test.csv`
-- Separating the target from the training features
-- Removing the ID column from model features
-- Extracting test IDs for submission generation
-- Detecting categorical columns
-- Providing a consistent feature set to all models
+`train.csv` contains the following columns:
 
-Conceptually:
+| Column | Role |
+|---|---|
+| `id` | Observation identifier |
+| `Age` | Feature |
+| `Annual_Income_USD` | Feature |
+| `Daily_Commute_km` | Feature |
+| `Number_of_Cars_Owned` | Feature |
+| `Charging_Stations_Near_Home` | Feature |
+| `Charging_Stations_Near_Work` | Feature |
+| `Environmental_Concern_Level` | Feature |
+| `Gender` | Categorical feature |
+| `City_Type` | Categorical feature |
+| `Current_Car_Type` | Categorical feature |
+| `Home_Charging_Possible` | Categorical feature |
+| `Subsidy_Available` | Categorical feature |
+| `Range_Anxiety_Level` | Categorical feature |
+| `Will_Buy_EV` | Target |
+
+The target variable is:
 
 ```text
-train.csv ──┐
-            │
-            ├──→ EVDataLoader
-            │       │
-test.csv ───┘       │
-                    ├──→ X
-                    ├──→ y
-                    ├──→ X_test
-                    ├──→ test_ids
-                    └──→ categorical columns
+Will_Buy_EV
 ```
 
-Centralizing this logic ensures that CatBoost, LightGBM, XGBoost, and future models use the same underlying data pipeline.
+with two classes:
+
+```text
+No
+Yes
+```
+
+The `id` column is preserved for submission generation but is excluded from model training.
+
+### Test Data
+
+`test.csv` contains the same model features as the training data but does not contain `Will_Buy_EV`.
+
+The model predicts:
+
+```text
+P(Will_Buy_EV = Yes)
+```
+
+for every observation in the test set.
 
 ---
 
-## 2. Baseline
+## Output
 
-The first model is a CatBoost classifier.
-
-The training data is divided using a stratified 80/20 train-validation split:
+Prediction files are automatically generated in:
 
 ```text
-Full Training Data
-        │
-        ├── 80% Training
-        │
-        └── 20% Validation
+predictions/
 ```
-
-Stratification preserves approximately the same target-class distribution in both subsets.
-
-The baseline model configuration is:
-
-```python
-MODEL_PARAMS = {
-    "iterations": 500,
-    "depth": 6,
-    "learning_rate": 0.05,
-    "random_seed": 42,
-}
-```
-
-The baseline achieved:
-
-```text
-Local ROC AUC: 0.94110
-Public LB:     0.94083
-```
-
-This provides the initial benchmark against which future experiments can be compared.
-
----
-
-## 3. Cross-Validation
-
-A single train-validation split can be sensitive to the particular observations assigned to the validation set.
-
-To obtain a more reliable estimate of model performance, the next experiment uses:
-
-```python
-StratifiedKFold(
-    n_splits=5,
-    shuffle=True,
-    random_state=42
-)
-```
-
-The training data is divided into five folds:
-
-```text
-Fold 1: [Validation] [Train]      [Train]      [Train]      [Train]
-Fold 2: [Train]      [Validation] [Train]      [Train]      [Train]
-Fold 3: [Train]      [Train]      [Validation] [Train]      [Train]
-Fold 4: [Train]      [Train]      [Train]      [Validation] [Train]
-Fold 5: [Train]      [Train]      [Train]      [Train]      [Validation]
-```
-
-Each observation:
-
-- is used for training in four folds
-- is used for validation exactly once
-
-This allows every training observation to receive an out-of-fold prediction.
-
----
-
-## 4. Out-of-Fold Predictions
-
-For every fold, the model predicts probabilities for observations that were not used to train that model.
-
-These predictions are stored in their original positions:
-
-```text
-Fold 1 validation predictions ──┐
-Fold 2 validation predictions ──┤
-Fold 3 validation predictions ──┼──→ Complete OOF Predictions
-Fold 4 validation predictions ──┤
-Fold 5 validation predictions ──┘
-```
-
-The final OOF ROC AUC is calculated using all out-of-fold predictions.
-
-This provides a more reliable local estimate of generalization performance than a single train-validation split.
-
----
-
-## 5. Test Prediction
-
-Each of the five cross-validation models also predicts probabilities for the competition test set.
-
-For each test observation, the final prediction is the average of the five model predictions:
-
-```text
-Model 1 ──→ Test Prediction 1 ──┐
-Model 2 ──→ Test Prediction 2 ──┤
-Model 3 ──→ Test Prediction 3 ──┼──→ Average ──→ Final Prediction
-Model 4 ──→ Test Prediction 4 ──┤
-Model 5 ──→ Test Prediction 5 ──┘
-```
-
-This reduces dependence on any single training split.
-
----
-
-## 6. Prediction Pipeline
-
-Prediction files are generated through the `PredictionSaver` class located in:
-
-```text
-utils/prediction_saver.py
-```
-
-The saver:
-
-- Creates the prediction directory when necessary
-- Builds a Kaggle-compatible submission DataFrame
-- Automatically assigns an experiment version
-- Includes the local ROC AUC in the filename
-- Saves the prediction as a CSV file
 
 The naming convention is:
 
@@ -267,41 +159,314 @@ prediction_v002_auc_0.94110.csv
 prediction_v003_auc_0.94203.csv
 ```
 
-This makes it easier to associate each submission with its corresponding local experiment.
+Each file contains:
 
----
-
-# Evaluation
-
-The primary evaluation metric is **ROC AUC**.
-
-Unlike accuracy, ROC AUC evaluates how well the model ranks positive observations above negative observations across different classification thresholds.
-
-Therefore, submissions contain probabilities:
-
-```text
+```csv
 id,Will_Buy_EV
 668665,0.009810
 668666,0.022302
 668667,0.005163
-...
 ```
 
-rather than class labels such as:
+`Will_Buy_EV` contains a probability rather than a `Yes` or `No` class prediction because the competition is evaluated using ROC AUC.
+
+Prediction files are generated locally and are not tracked by Git.
+
+---
+
+## Project Structure
+
+```text
+kaggle_competition1/
+│
+├── data/
+│   ├── train.csv
+│   ├── test.csv
+│   └── sample_submission.csv
+│
+├── predictions/
+│
+├── training/
+│   ├── __init__.py
+│   ├── baseline.py
+│   └── catboost_cv.py
+│
+├── utils/
+│   ├── __init__.py
+│   ├── data_loader.py
+│   └── prediction_saver.py
+│
+├── requirements.txt
+├── .gitignore
+└── README.md
+```
+
+### `data/`
+
+Contains the competition input datasets.
+
+### `training/`
+
+Contains model training and validation scripts.
+
+Current experiments:
+
+- `baseline.py` — CatBoost with a single stratified train-validation split
+- `catboost_cv.py` — CatBoost with 5-fold stratified cross-validation
+
+Future model experiments will also be added to this directory.
+
+### `utils/`
+
+Contains reusable components shared by different model experiments.
+
+Current utilities:
+
+- `EVDataLoader` — shared data loading and preparation
+- `PredictionSaver` — standardized prediction file generation
+
+### `predictions/`
+
+Contains generated Kaggle submission files.
+
+This directory is generated during model execution and is not intended to be committed to the repository.
+
+---
+
+# Methodology
+
+## Data Pipeline
+
+All model experiments use the same data-loading pipeline through:
+
+```text
+utils/data_loader.py
+```
+
+The `EVDataLoader` class is responsible for:
+
+1. Loading the training dataset
+2. Loading the test dataset
+3. Separating features and target
+4. Removing `id` from model features
+5. Extracting test IDs
+6. Detecting categorical features
+7. Returning the prepared datasets to the training pipeline
+
+Conceptually:
+
+```text
+                 EVDataLoader
+                /            \
+               /              \
+        train.csv            test.csv
+            │                    │
+            ▼                    ▼
+         X + y                X_test
+                                 │
+                                 ▼
+                              test_ids
+
+                +
+        categorical columns
+```
+
+Centralizing data loading ensures that different models use the same input pipeline.
+
+---
+
+## Prediction Pipeline
+
+Prediction output is handled by:
+
+```text
+utils/prediction_saver.py
+```
+
+The `PredictionSaver` class:
+
+1. Creates the `predictions/` directory if necessary
+2. Determines the next experiment version
+3. Creates a Kaggle-compatible prediction DataFrame
+4. Adds the local ROC AUC to the filename
+5. Saves the result as a CSV file
+
+For example:
+
+```text
+prediction_v003_auc_0.94203.csv
+```
+
+This keeps prediction files associated with their corresponding local experiment results.
+
+---
+
+## Baseline Model
+
+The initial baseline uses `CatBoostClassifier`.
+
+The training data is divided using a stratified 80/20 split:
+
+```text
+Training Dataset
+      │
+      ├───────────────┐
+      ▼               ▼
+  80% Train      20% Validation
+      │               │
+      └── CatBoost ───┘
+              │
+              ▼
+           ROC AUC
+```
+
+The baseline configuration is approximately:
+
+```python
+MODEL_PARAMS = {
+    "iterations": 500,
+    "depth": 6,
+    "learning_rate": 0.05,
+    "random_seed": 42,
+}
+```
+
+The initial experiment achieved:
+
+```text
+Local ROC AUC: 0.94110
+Public LB:     0.94083
+```
+
+This serves as the initial benchmark for future experiments.
+
+---
+
+## Cross-Validation
+
+A single validation split can produce a noisy estimate of model performance depending on which observations happen to enter the validation set.
+
+The main evaluation pipeline therefore uses:
+
+```python
+StratifiedKFold(
+    n_splits=5,
+    shuffle=True,
+    random_state=42
+)
+```
+
+The training data is divided into five folds:
+
+```text
+          F1    F2    F3    F4    F5
+
+Fold 1    VAL   TR    TR    TR    TR
+Fold 2    TR    VAL   TR    TR    TR
+Fold 3    TR    TR    VAL   TR    TR
+Fold 4    TR    TR    TR    VAL   TR
+Fold 5    TR    TR    TR    TR    VAL
+```
+
+Each observation is:
+
+- used for training four times
+- used for validation exactly once
+
+This produces out-of-fold predictions for the entire training dataset.
+
+---
+
+## Out-of-Fold Evaluation
+
+For each fold:
+
+```text
+Training Folds
+      │
+      ▼
+    Model
+      │
+      ▼
+Held-Out Fold
+      │
+      ▼
+Validation Probability
+```
+
+The validation probabilities are stored at their original dataset positions.
+
+After all five folds:
+
+```text
+Fold 1 predictions ──┐
+Fold 2 predictions ──┤
+Fold 3 predictions ──┼──► Complete OOF Predictions
+Fold 4 predictions ──┤
+Fold 5 predictions ──┘
+                              │
+                              ▼
+                           ROC AUC
+```
+
+The resulting OOF ROC AUC is used as the primary local metric when comparing experiments.
+
+---
+
+## Test Prediction
+
+Each fold model also predicts the competition test set.
+
+This produces five predictions for every test observation:
+
+```text
+Fold 1 Model ──► Test probabilities ──┐
+Fold 2 Model ──► Test probabilities ──┤
+Fold 3 Model ──► Test probabilities ──┼──► Average
+Fold 4 Model ──► Test probabilities ──┤       │
+Fold 5 Model ──► Test probabilities ──┘       ▼
+                                          Submission
+```
+
+The final test probability is the average of the five fold predictions.
+
+This reduces dependence on any single train-validation split.
+
+---
+
+# Evaluation Metric
+
+The competition uses **ROC AUC**.
+
+ROC AUC evaluates how effectively the model ranks positive examples above negative examples across classification thresholds.
+
+Because of this, the model submits probabilities instead of hard class predictions.
+
+For example:
+
+```text
+0.95
+0.72
+0.31
+0.04
+```
+
+rather than:
 
 ```text
 Yes
-No
 Yes
+No
+No
 ```
 
-The positive class is:
+The positive class for this project is:
 
 ```text
 Will_Buy_EV = Yes
 ```
 
-and the submitted prediction represents:
+Therefore, model predictions represent:
 
 ```text
 P(Will_Buy_EV = Yes)
@@ -311,106 +476,56 @@ P(Will_Buy_EV = Yes)
 
 # Experiment Workflow
 
-The development workflow for this project is:
+The project follows this general experimental workflow:
 
 ```text
-Data Exploration
-      │
-      ▼
-CatBoost Baseline
-      │
-      ▼
+Data
+ │
+ ▼
+EVDataLoader
+ │
+ ▼
+Baseline
+ │
+ ▼
 5-Fold Cross-Validation
-      │
-      ▼
+ │
+ ▼
 OOF Evaluation
-      │
-      ├─────────────┐
-      ▼             ▼
-  CatBoost       LightGBM
-      │             │
-      └──────┬──────┘
-             │
-             ▼
-          XGBoost
-             │
-             ▼
-     Feature Engineering
-             │
-             ▼
-        Model Tuning
-             │
-             ▼
-          Ensemble
-             │
-             ▼
-     Kaggle Submission
+ │
+ ├──────────────┬──────────────┐
+ ▼              ▼              ▼
+CatBoost     LightGBM       XGBoost
+ │              │              │
+ └──────────────┼──────────────┘
+                ▼
+       Feature Engineering
+                │
+                ▼
+       Hyperparameter Tuning
+                │
+                ▼
+            Ensemble
+                │
+                ▼
+       Kaggle Submission
 ```
 
-The main principle is to evaluate model changes using the same cross-validation framework before relying on leaderboard results.
+All major model changes should be evaluated locally using the same cross-validation framework before comparing Kaggle leaderboard performance.
 
 ---
 
-# Planned Experiments
+# Results
 
-Future experiments include:
+| Experiment | Validation Strategy | Local ROC AUC | Public LB |
+|---|---|---:|---:|
+| CatBoost Baseline | Stratified 80/20 | 0.94110 | 0.94083 |
+| CatBoost CV | 5-Fold Stratified CV | In Progress | - |
+| LightGBM CV | 5-Fold Stratified CV | Planned | - |
+| XGBoost CV | 5-Fold Stratified CV | Planned | - |
+| Ensemble | OOF-based | Planned | - |
 
-- Complete CatBoost 5-fold CV baseline
-- LightGBM cross-validation
-- XGBoost cross-validation
-- Hyperparameter experiments
-- Feature engineering
-- Feature importance analysis
-- Comparison of OOF predictions
-- Probability averaging
-- Rank averaging
-- Multi-model ensemble
-
----
-
-# Running the Project
-
-Create and activate the virtual environment before running experiments.
-
-Run the baseline from the project root:
-
-```bash
-python -m training.baseline
-```
-
-Run CatBoost cross-validation:
-
-```bash
-python -m training.catboost_cv
-```
-
-Running scripts as modules ensures that project-level packages such as `utils` can be imported correctly.
-
-For example:
-
-```python
-from utils.data_loader import EVDataLoader
-from utils.prediction_saver import PredictionSaver
-```
-
----
-
-# Dependencies
-
-Main libraries currently used:
-
-```text
-pandas
-numpy
-scikit-learn
-catboost
-```
-
-Install all project dependencies with:
-
-```bash
-pip install -r requirements.txt
-```
+The results table will be updated as new experiments are completed.
 
 ---
 
@@ -422,31 +537,26 @@ Random seeds are fixed where applicable:
 RANDOM_SEED = 42
 ```
 
-Cross-validation uses shuffled stratified folds with the same random seed so that experiments can be compared using identical splits.
-
-As new models are introduced, the same validation strategy will be used whenever possible to make local model comparisons meaningful.
+Cross-validation uses the same shuffled stratified folds so that model experiments can be compared under consistent validation conditions.
 
 ---
 
-# Current Status
+# Roadmap
 
-- [x] Download and inspect competition data
-- [x] Build CatBoost baseline
-- [x] Switch evaluation from accuracy to ROC AUC
-- [x] Generate probability-based submissions
+- [x] Set up project environment
+- [x] Load and inspect competition data
+- [x] Build initial CatBoost baseline
+- [x] Use probability predictions for ROC AUC
+- [x] Generate Kaggle-compatible submissions
 - [x] Submit baseline to Kaggle
-- [x] Refactor data loading into `EVDataLoader`
-- [x] Refactor prediction output into `PredictionSaver`
-- [x] Set up project package structure
-- [ ] Complete CatBoost 5-fold CV
-- [ ] Train LightGBM model
-- [ ] Train XGBoost model
-- [ ] Feature engineering
-- [ ] Hyperparameter tuning
-- [ ] Model ensemble
-
-Current best Public Leaderboard score:
-
-```text
-0.94083
-```
+- [x] Create reusable `EVDataLoader`
+- [x] Create reusable `PredictionSaver`
+- [x] Refactor project into packages
+- [ ] Complete CatBoost 5-fold cross-validation
+- [ ] Train LightGBM
+- [ ] Train XGBoost
+- [ ] Perform feature engineering
+- [ ] Tune model hyperparameters
+- [ ] Compare OOF predictions
+- [ ] Build model ensembles
+- [ ] Select final submissions
