@@ -16,10 +16,11 @@ N_SPLITS = 5
 RANDOM_SEED = 42
 
 MODEL_PARAMS = {
-    "iterations": 500,
+    "iterations": 3000,
     "depth": 6,
     "learning_rate": 0.05,
     "random_seed": RANDOM_SEED,
+    "eval_metric": "AUC",
     "verbose": 100,
 }
 
@@ -73,9 +74,11 @@ for fold, (train_idx, val_idx) in enumerate(
     model = CatBoostClassifier(**MODEL_PARAMS)
 
     model.fit(
-        X_train,
-        y_train,
-        cat_features=cat_cols,
+    X_train,
+    y_train,
+    cat_features=cat_cols,
+    eval_set=(X_val, y_val),
+    early_stopping_rounds=200,
     )
 
     # Validation prediction
@@ -91,6 +94,8 @@ for fold, (train_idx, val_idx) in enumerate(
     )
 
     fold_scores.append(fold_auc)
+    print(f"Fold {fold} AUC: {fold_auc:.5f}")
+    print(f"Best iteration: {model.get_best_iteration()}")
 
     print(f"Fold {fold} AUC: {fold_auc:.5f}")
 
