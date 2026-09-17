@@ -464,12 +464,8 @@ def main():
 
             y_train,
 
-            eval_set=[
-                (
-                    X_val,
-                    y_val,
-                )
-            ],
+            eval_X=X_val,
+            eval_y=y_val,
 
             eval_metric="auc",
 

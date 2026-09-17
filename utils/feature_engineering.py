@@ -459,13 +459,17 @@ class TripleTargetEncoder:
 
     def fit_transform(self, X, y):
         from sklearn.preprocessing import TargetEncoder
+        from sklearn.model_selection import StratifiedKFold
 
         self.encoders_ = []
         encoded = {}
         columns = list(NotebookFeatureEngineer.NUMERIC_COLUMNS)
         for smooth, name in [('auto', 'auto'), (10.0, '10'), (100.0, '100')]:
             encoder = TargetEncoder(
-                smooth=smooth, cv=self.cv, random_state=self.random_state,
+                smooth=smooth,
+                cv=StratifiedKFold(
+                    n_splits=self.cv, shuffle=True, random_state=self.random_state,
+                ),
                 target_type='binary',
             )
             # fit_transform includes inner CV; fit().transform() would leak.
