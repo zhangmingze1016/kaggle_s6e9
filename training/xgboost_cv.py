@@ -100,9 +100,8 @@ def main():
 
     loader = EVDataLoader()
 
-    X, y, X_test, test, cat_cols = loader.load()
-
-    test_ids = test["id"].to_numpy()
+    X, y, X_test, test_ids, cat_cols = loader.load()
+    y = (y == "Yes").astype(int)
 
     print("\nData Loaded")
     print("==============================")

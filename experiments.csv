@@ -1,2 +1,2 @@
-version,model,iterations,depth,learning_rate,early_stopping_rounds,n_splits,random_seed,oof_auc,fold_mean_auc,fold_std_auc,mean_best_iteration
-v005,CatBoost,3000,5,0.05,200,5,42,0.9419008058312311,0.9419079757435476,0.0007467204048391341,2391.2
+version,model,iterations,depth,learning_rate,l2_leaf_reg,early_stopping_rounds,n_splits,random_seed,oof_auc,fold_mean_auc,fold_std_auc,best_iterations,mean_best_iteration
+v008,CatBoost,3000,4,0.05,5.0,200,5,42,0.9419454351598987,0.9419502762003212,0.00074196055529334,"2998,2849,2976,2999,2999",2964.2

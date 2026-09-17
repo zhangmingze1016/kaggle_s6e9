@@ -15,8 +15,9 @@ from utils.prediction_saver import PredictionSaver
 
 DEFAULT_PARAMS = {
     "iterations": 3000,
-    "depth": 6,
+    "depth": 4,
     "learning_rate": 0.05,
+    "l2_leaf_reg": 3.0,
     "early_stopping_rounds": 200,
 }
 
@@ -55,6 +56,13 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--l2-leaf-reg",
+        type=float,
+        default=DEFAULT_PARAMS["l2_leaf_reg"],
+        help="L2 regularization coefficient",
+    )
+
+    parser.add_argument(
         "--early-stopping-rounds",
         type=int,
         default=DEFAULT_PARAMS["early_stopping_rounds"],
@@ -81,6 +89,7 @@ def main():
         "iterations": args.iterations,
         "depth": args.depth,
         "learning_rate": args.learning_rate,
+        "l2_leaf_reg": args.l2_leaf_reg,
         "early_stopping_rounds": args.early_stopping_rounds,
         "n_splits": N_SPLITS,
         "random_seed": RANDOM_SEED,
@@ -113,9 +122,10 @@ def main():
         random_state=RANDOM_SEED,
     )
 
+    # Out-of-fold validation predictions
     oof_pred = np.zeros(len(X))
 
-    # Each fold contributes 1 / N_SPLITS
+    # Averaged test predictions across all folds
     test_pred = np.zeros(len(X_test))
 
     fold_scores = []
@@ -138,14 +148,23 @@ def main():
         y_train = y_binary.iloc[train_idx]
         y_val = y_binary.iloc[val_idx]
 
+        # ----------------------------------------------------
+        # Model
+        # ----------------------------------------------------
+
         model = CatBoostClassifier(
             iterations=args.iterations,
             depth=args.depth,
             learning_rate=args.learning_rate,
+            l2_leaf_reg=args.l2_leaf_reg,
             random_seed=RANDOM_SEED,
             eval_metric="AUC",
             verbose=100,
         )
+
+        # ----------------------------------------------------
+        # Training
+        # ----------------------------------------------------
 
         model.fit(
             X_train,
@@ -219,6 +238,10 @@ def main():
     print(f"Mean Fold AUC: {mean_auc:.5f}")
     print(f"Std Fold AUC:  {std_auc:.5f}")
     print(f"OOF ROC AUC:   {oof_auc:.5f}")
+
+    # --------------------------------------------------------
+    # Best iterations
+    # --------------------------------------------------------
 
     print("\nBest Iterations")
     print("==============================")
