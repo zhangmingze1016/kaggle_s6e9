@@ -30,6 +30,7 @@ RANDOM_SEED = 42
 # ============================================================
 
 def parse_args():
+
     parser = argparse.ArgumentParser(
         description="Run CatBoost cross-validation experiment"
     )
@@ -72,7 +73,7 @@ def parse_args():
     parser.add_argument(
         "--feature-engineering",
         action="store_true",
-        help="Add deterministic EV interaction features",
+        help="Enable feature engineering",
     )
 
     return parser.parse_args()
@@ -84,11 +85,11 @@ def parse_args():
 
 def main():
 
-    args = parse_args()
+    # ========================================================
+    # 1. Read arguments
+    # ========================================================
 
-    # --------------------------------------------------------
-    # Actual parameters used in this experiment
-    # --------------------------------------------------------
+    args = parse_args()
 
     experiment_params = {
         "model": "CatBoost",
@@ -102,26 +103,61 @@ def main():
         "random_seed": RANDOM_SEED,
     }
 
-    print("\nExperiment Parameters")
+    print("\n==============================")
+    print("Experiment Parameters")
     print("==============================")
 
     for name, value in experiment_params.items():
         print(f"{name}: {value}")
 
-    # --------------------------------------------------------
-    # Load data
-    # --------------------------------------------------------
 
-    loader = EVDataLoader(feature_engineering=args.feature_engineering)
+    # ========================================================
+    # 2. Load data
+    # ========================================================
+
+    loader = EVDataLoader(
+        feature_engineering=args.feature_engineering
+    )
 
     X, y, X_test, test_ids, cat_cols = loader.load()
 
-    # Convert target to 0 / 1 for ROC AUC
-    y_binary = (y == "Yes").astype(int)
+    # Target:
+    # Yes -> 1
+    # No  -> 0
 
-    # --------------------------------------------------------
-    # Cross-validation setup
-    # --------------------------------------------------------
+    y_binary = (
+        y
+        .eq("Yes")
+        .astype(int)
+    )
+
+
+    # ========================================================
+    # 3. Data information
+    # ========================================================
+
+    print("\n==============================")
+    print("Data Information")
+    print("==============================")
+
+    print(f"Train shape: {X.shape}")
+    print(f"Test shape:  {X_test.shape}")
+
+    print(f"\nNumber of features: {X.shape[1]}")
+    print(f"Categorical features: {len(cat_cols)}")
+
+    if cat_cols:
+        print("\nCategorical columns:")
+        for column in cat_cols:
+            print(f"  {column}")
+
+    print("\nTarget distribution:")
+    print(y_binary.value_counts(normalize=True))
+
+
+    # ========================================================
+    # 4. Cross-validation setup
+    # ========================================================
 
     cv = StratifiedKFold(
         n_splits=N_SPLITS,
@@ -129,25 +165,40 @@ def main():
         random_state=RANDOM_SEED,
     )
 
-    # Out-of-fold validation predictions
-    oof_pred = np.zeros(len(X))
+    # OOF predictions
+    oof_pred = np.zeros(
+        len(X),
+        dtype=float,
+    )
 
-    # Averaged test predictions across all folds
-    test_pred = np.zeros(len(X_test))
+    # Test predictions averaged across folds
+    test_pred = np.zeros(
+        len(X_test),
+        dtype=float,
+    )
 
     fold_scores = []
     best_iterations = []
 
-    # --------------------------------------------------------
-    # Cross-validation
-    # --------------------------------------------------------
+
+    # ========================================================
+    # 5. Cross-validation
+    # ========================================================
 
     for fold, (train_idx, val_idx) in enumerate(
         cv.split(X, y_binary),
         start=1,
     ):
 
-        print(f"\n========== Fold {fold} ==========")
+        print("\n")
+        print("=" * 60)
+        print(f"Fold {fold}/{N_SPLITS}")
+        print("=" * 60)
+
+
+        # ----------------------------------------------------
+        # Split fold
+        # ----------------------------------------------------
 
         X_train = X.iloc[train_idx]
         X_val = X.iloc[val_idx]
@@ -155,120 +206,272 @@ def main():
         y_train = y_binary.iloc[train_idx]
         y_val = y_binary.iloc[val_idx]
 
+
+        print(
+            f"Train rows: {len(X_train)} | "
+            f"Validation rows: {len(X_val)}"
+        )
+
+
         # ----------------------------------------------------
-        # Model
+        # Create model
         # ----------------------------------------------------
 
         model = CatBoostClassifier(
+
+            # Number of boosting trees
             iterations=args.iterations,
+
+            # Maximum tree depth
             depth=args.depth,
+
+            # Step size
             learning_rate=args.learning_rate,
+
+            # L2 regularization
             l2_leaf_reg=args.l2_leaf_reg,
+
+            # Reproducibility
             random_seed=RANDOM_SEED,
+
+            # Evaluation metric
             eval_metric="AUC",
+
+            # Binary classification loss
+            loss_function="Logloss",
+
+            # Print training progress every 100 iterations
             verbose=100,
+
+            # Automatically keep the best model
+            use_best_model=True,
+
+            # CPU training
+            task_type="CPU",
+
+            # Allow writing CatBoost temporary training files?
+            allow_writing_files=False,
         )
 
+
         # ----------------------------------------------------
-        # Training
+        # Train model
         # ----------------------------------------------------
 
         model.fit(
             X_train,
             y_train,
+
             cat_features=cat_cols,
-            eval_set=(X_val, y_val),
-            early_stopping_rounds=args.early_stopping_rounds,
+
+            eval_set=(
+                X_val,
+                y_val,
+            ),
+
+            early_stopping_rounds=(
+                args.early_stopping_rounds
+            ),
         )
+
 
         # ----------------------------------------------------
         # Validation prediction
         # ----------------------------------------------------
 
-        val_pred = model.predict_proba(X_val)[:, 1]
+        val_pred = model.predict_proba(
+            X_val
+        )[:, 1]
 
         oof_pred[val_idx] = val_pred
+
+
+        # ----------------------------------------------------
+        # Validation metric
+        # ----------------------------------------------------
 
         fold_auc = roc_auc_score(
             y_val,
             val_pred,
         )
 
-        fold_scores.append(fold_auc)
+        fold_scores.append(
+            fold_auc
+        )
+
 
         # ----------------------------------------------------
         # Best iteration
         # ----------------------------------------------------
 
-        best_iteration = model.get_best_iteration()
+        best_iteration = (
+            model.get_best_iteration()
+        )
 
-        best_iterations.append(best_iteration)
+        best_iterations.append(
+            best_iteration
+        )
 
-        print(f"Fold {fold} AUC: {fold_auc:.5f}")
-        print(f"Best iteration: {best_iteration}")
+
+        # ----------------------------------------------------
+        # Fold results
+        # ----------------------------------------------------
+
+        print("\nFold Results")
+        print("------------------------------")
+
+        print(
+            f"Fold {fold} AUC: "
+            f"{fold_auc:.6f}"
+        )
+
+        print(
+            f"Best iteration: "
+            f"{best_iteration}"
+        )
+
 
         # ----------------------------------------------------
         # Test prediction
         # ----------------------------------------------------
 
-        fold_test_pred = model.predict_proba(X_test)[:, 1]
+        fold_test_pred = (
+            model.predict_proba(
+                X_test
+            )[:, 1]
+        )
 
-        test_pred += fold_test_pred / N_SPLITS
+        test_pred += (
+            fold_test_pred / N_SPLITS
+        )
 
-    # --------------------------------------------------------
-    # Final CV metrics
-    # --------------------------------------------------------
 
-    mean_auc = np.mean(fold_scores)
-    std_auc = np.std(fold_scores)
+    # ========================================================
+    # 6. Final CV results
+    # ========================================================
+
+    mean_auc = np.mean(
+        fold_scores
+    )
+
+    std_auc = np.std(
+        fold_scores
+    )
 
     oof_auc = roc_auc_score(
         y_binary,
         oof_pred,
     )
 
-    # --------------------------------------------------------
-    # Results
-    # --------------------------------------------------------
 
-    print("\n==============================")
-    print("CV Results")
-    print("==============================")
+    print("\n")
+    print("=" * 60)
+    print("Final Cross-Validation Results")
+    print("=" * 60)
 
     for fold, score in enumerate(
         fold_scores,
         start=1,
     ):
-        print(f"Fold {fold}: {score:.5f}")
 
-    print()
-    print(f"Mean Fold AUC: {mean_auc:.5f}")
-    print(f"Std Fold AUC:  {std_auc:.5f}")
-    print(f"OOF ROC AUC:   {oof_auc:.5f}")
+        print(
+            f"Fold {fold}: "
+            f"{score:.6f}"
+        )
 
-    # --------------------------------------------------------
-    # Best iterations
-    # --------------------------------------------------------
 
-    print("\nBest Iterations")
-    print("==============================")
+    print("\n------------------------------")
+
+    print(
+        f"Mean Fold AUC: "
+        f"{mean_auc:.6f}"
+    )
+
+    print(
+        f"Std Fold AUC:  "
+        f"{std_auc:.6f}"
+    )
+
+    print(
+        f"OOF ROC AUC:   "
+        f"{oof_auc:.6f}"
+    )
+
+
+    # ========================================================
+    # 7. Best iteration statistics
+    # ========================================================
+
+    print("\n")
+    print("=" * 60)
+    print("Best Iterations")
+    print("=" * 60)
 
     for fold, iteration in enumerate(
         best_iterations,
         start=1,
     ):
-        print(f"Fold {fold}: {iteration}")
 
-    mean_best_iteration = np.mean(best_iterations)
+        print(
+            f"Fold {fold}: "
+            f"{iteration}"
+        )
+
+
+    mean_best_iteration = np.mean(
+        best_iterations
+    )
+
+    std_best_iteration = np.std(
+        best_iterations
+    )
+
+    print("\n------------------------------")
 
     print(
         f"Mean best iteration: "
         f"{mean_best_iteration:.0f}"
     )
 
-    # --------------------------------------------------------
-    # Save prediction + experiment information
-    # --------------------------------------------------------
+    print(
+        f"Std best iteration:  "
+        f"{std_best_iteration:.1f}"
+    )
+
+
+    # ========================================================
+    # 8. Prediction statistics
+    # ========================================================
+
+    print("\n")
+    print("=" * 60)
+    print("Test Prediction Statistics")
+    print("=" * 60)
+
+    print(
+        f"Mean prediction: "
+        f"{test_pred.mean():.6f}"
+    )
+
+    print(
+        f"Std prediction:  "
+        f"{test_pred.std():.6f}"
+    )
+
+    print(
+        f"Min prediction:  "
+        f"{test_pred.min():.6f}"
+    )
+
+    print(
+        f"Max prediction:  "
+        f"{test_pred.max():.6f}"
+    )
+
+
+    # ========================================================
+    # 9. Save predictions + experiment metadata
+    # ========================================================
 
     PredictionSaver().save(
         ids=test_ids,
@@ -280,6 +483,13 @@ def main():
         best_iterations=best_iterations,
     )
 
+
+    print("\nExperiment completed successfully.")
+
+
+# ============================================================
+# Entry point
+# ============================================================
 
 if __name__ == "__main__":
     main()

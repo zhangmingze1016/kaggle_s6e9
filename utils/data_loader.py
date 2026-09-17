@@ -1,6 +1,6 @@
 import pandas as pd
 
-from utils.feature_engineering import EVFeatureEngineer
+from utils.feature_engineering import FeatureEngineer
 
 
 class EVDataLoader:
@@ -9,14 +9,10 @@ class EVDataLoader:
         self,
         train_path="data/train.csv",
         test_path="data/test.csv",
-        target="Will_Buy_EV",
-        id_column="id",
-        feature_engineering=False
+        feature_engineering=False,
     ):
         self.train_path = train_path
         self.test_path = test_path
-        self.target = target
-        self.id_column = id_column
         self.feature_engineering = feature_engineering
 
     def load(self):
@@ -24,28 +20,45 @@ class EVDataLoader:
         train = pd.read_csv(self.train_path)
         test = pd.read_csv(self.test_path)
 
-        X = train.drop(
-            columns=[self.target, self.id_column]
-        )
+        # ---------------------------------------------
+        # Target / ID
+        # ---------------------------------------------
 
-        y = train[self.target]
+        y = train["Will_Buy_EV"]
+
+        test_ids = test["id"].copy()
+
+        X = train.drop(
+            columns=["Will_Buy_EV", "id"]
+        )
 
         X_test = test.drop(
-            columns=[self.id_column]
+            columns=["id"]
         )
 
-        test_ids = test[self.id_column]
-
-        assert X.columns.tolist() == X_test.columns.tolist(), \
-            "Train and test features do not match"
+        # ---------------------------------------------
+        # Feature engineering
+        # ---------------------------------------------
 
         if self.feature_engineering:
-            engineer = EVFeatureEngineer()
+
+            engineer = FeatureEngineer()
+
             X = engineer.transform(X)
             X_test = engineer.transform(X_test)
 
+        # ---------------------------------------------
+        # Detect categorical columns
+        # ---------------------------------------------
+
         cat_cols = X.select_dtypes(
-            include=["object", "str"]
+            include=["object", "category"]
         ).columns.tolist()
 
-        return X, y, X_test, test_ids, cat_cols
+        return (
+            X,
+            y,
+            X_test,
+            test_ids,
+            cat_cols,
+        )
