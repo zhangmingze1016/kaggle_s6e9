@@ -746,53 +746,101 @@ Command-line hyperparameters and structured prediction filenames make individual
 - [ ] Build model ensembles
 - [ ] Select final submissions
 
-# Feature Engineering
+# Feature Engineering and Notebook LightGBM
 
-`utils/feature_engineering.py` provides `EVFeatureEngineer.transform(X)`.
-It retains the 13 original predictors and adds 21 features:
-
-- Charging: total stations, home/work difference, home share, no public charging,
-  and no charging access (neither public stations nor home charging).
-- Encodings: home charging and subsidy as binary values; range anxiety as
-  Low = 0, Medium = 1, High = 2. Original categorical values are retained.
-- Ratios: income per car, income per year of age, commute per car, and commute
-  per public charging station.
-- Interactions: commute × anxiety, commute/anxiety × no home charging,
-  environmental concern × income/subsidy, and income × subsidy.
-- Categorical combinations: city × home charging, car type × subsidy, and
-  home charging × range anxiety.
-
-These are candidate predictors, not established causal relationships. All
-features are row-wise: no target encoding, full-data aggregates, or fitted
-statistics are used, so they can be computed before splitting CV folds.
-Zero denominators produce NaN; numeric missing values remain NaN. Missing
-categories use `__MISSING__`; unknown ordinal labels map to NaN while their
-original categorical value is retained.
-
-Feature engineering is opt-in, preserving the original baseline commands:
+The existing `utils/` → `EVDataLoader` → `training/` → `PredictionSaver`
+architecture is retained. The original `FeatureEngineer.transform()` is kept
+as the `legacy` recipe, including charging, financial and categorical
+interactions. CatBoost and XGBoost keep their existing CLI behavior:
 
 ```bash
 python -m training.catboost_cv --feature-engineering
 python -m training.xgboost_cv --feature-engineering
 ```
 
-Compare runs with and without the flag using the same model parameters and
-CV folds. Improvement must be judged by OOF AUC; added features are not
-guaranteed to improve the score. Engineered submission filenames include `_fe_`,
-and the experiment log records `feature_engineering`.
+## Notebook recipe
 
-Programmatic usage:
+Adapted from [Rugved Bane's notebook, version 349757944](https://www.kaggle.com/code/rugvedbane/0-94590-lb-stacking-failed-this-didn-t?scriptVersionId=349757944).
+The existing filename `training/lightlgm_cv.py` is retained for compatibility.
+
+```bash
+python -m training.lightlgm_cv
+```
+
+This defaults to:
+
+- FE-B: binary/ordinal mappings, six financial/charging features, and one-hot
+  encoding of Gender, City_Type and Current_Car_Type with the first level dropped.
+- Eight digit positions (-4 through 3) for each of seven numeric inputs. The
+  original floating-point floor division is preserved, including its rounding artifacts.
+- Normalized frequency of every base/digit feature using train + test together.
+- Constant and exactly perfectly correlated feature removal based on train.
+- Three target encodings (smooth auto, 10, 100) of the seven numeric inputs.
+  Each outer training fold uses five-fold inner cross-fitting; validation and
+  test only use encoders fitted on that outer training fold.
+- Ten stratified outer folds, seed 42; LightGBM learning rate 0.005, up to
+  100000 trees, depth 7, 31 leaves, min_child_samples 50, max_bin 255,
+  reg_alpha 0.1, reg_lambda 2.0, is_unbalance enabled, and AUC-only early
+  stopping with patience 500. Test predictions are averaged across folds.
+
+Frequency encoding intentionally uses the unlabeled test distribution, as in
+the reference (transductive competition preprocessing). It uses no test or
+validation labels, but is not a strict train-only preprocessing estimate for
+future production data. Feature filtering also precedes outer CV as in the
+reference. Target encodings are strictly fitted within folds.
+
+Local adaptations: CPU is the default instead of GPU; one-hot category levels
+are shared between train/test to avoid inconsistent dropped baselines; the seven
+raw numeric columns are retained even on tiny/degenerate inputs for target
+encoding. On a 6000-train/2000-test sample, feature matrices and cross-fitted
+TE values were verified against the specified notebook's executable functions.
+
+The notebook sets subsample=0.8 but leaves subsample_freq=0, which disables row
+bagging. This behavior is preserved; use `--subsample-freq 1` for an intentional
+experiment. GPU is available via `--device gpu` if supported by your installation.
+
+## Comparisons and overrides
+
+```bash
+# Notebook features without target encoding
+python -m training.lightlgm_cv --no-target-encoding
+
+# Original feature recipe, without target encoding
+python -m training.lightlgm_cv --feature-recipe legacy --no-target-encoding
+
+# Raw features, without target encoding
+python -m training.lightlgm_cv --no-feature-engineering --no-target-encoding
+
+# Shorter exploratory run (not a reproduction of the notebook score)
+python -m training.lightlgm_cv --n-splits 5 --n-estimators 3000 --n-jobs 4
+```
+
+All existing LightGBM hyperparameter flags remain available. Input/output paths
+can be overridden with `--train-path`, `--test-path`, `--output-dir` and
+`--experiment-file`. Prediction filenames identify the notebook and triple-TE
+recipe; experiment records include the recipe, folds, device and encoding settings.
+Historical experiment scores above are unchanged; the notebook's reported
+0.94590 public LB is **not** a locally reproduced score.
+
+Programmatic loading (the existing five-value return contract is unchanged):
 
 ```python
 from utils.data_loader import EVDataLoader
 
 X, y, X_test, test_ids, cat_cols = EVDataLoader(
-    feature_engineering=True,
+    feature_engineering=True, feature_recipe="notebook",
 ).load()
+# TripleTargetEncoder is applied inside the training loop, never here.
 ```
 
-Run feature validation tests:
+Validation:
 
 ```bash
 python -m unittest discover -s tests -v
 ```
+
+Tests cover feature formulas/schema, unchanged inputs, unseen-value fallback,
+and cross-fitting that prevents a training row from encoding its own label.
+A short two-fold LightGBM run also verified loading, encoding, training,
+prediction averaging, submission output and experiment logging. Full ten-fold
+training is required before comparing OOF performance to the reference.

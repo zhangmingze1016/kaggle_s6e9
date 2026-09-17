@@ -61,6 +61,11 @@ class PredictionSaver:
         if params.get("feature_engineering", False):
             filename_parts.append("fe")
 
+        if params.get("feature_engineering") and params.get("feature_recipe") == "notebook":
+            filename_parts.append("notebook")
+        if params.get("target_encoding", False):
+            filename_parts.append("te3")
+
         # CatBoost / common parameters
         if "depth" in params:
             filename_parts.append(

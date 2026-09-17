@@ -17,3 +17,4 @@ catboost==1.2.10
 scikit-learn==1.9.1
 pathlib==1.0.1
 xgboost==3.4.1
+lightgbm==4.7.0
