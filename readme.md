@@ -745,3 +745,54 @@ Command-line hyperparameters and structured prediction filenames make individual
 - [ ] Compare OOF predictions
 - [ ] Build model ensembles
 - [ ] Select final submissions
+
+# Feature Engineering
+
+`utils/feature_engineering.py` provides `EVFeatureEngineer.transform(X)`.
+It retains the 13 original predictors and adds 21 features:
+
+- Charging: total stations, home/work difference, home share, no public charging,
+  and no charging access (neither public stations nor home charging).
+- Encodings: home charging and subsidy as binary values; range anxiety as
+  Low = 0, Medium = 1, High = 2. Original categorical values are retained.
+- Ratios: income per car, income per year of age, commute per car, and commute
+  per public charging station.
+- Interactions: commute × anxiety, commute/anxiety × no home charging,
+  environmental concern × income/subsidy, and income × subsidy.
+- Categorical combinations: city × home charging, car type × subsidy, and
+  home charging × range anxiety.
+
+These are candidate predictors, not established causal relationships. All
+features are row-wise: no target encoding, full-data aggregates, or fitted
+statistics are used, so they can be computed before splitting CV folds.
+Zero denominators produce NaN; numeric missing values remain NaN. Missing
+categories use `__MISSING__`; unknown ordinal labels map to NaN while their
+original categorical value is retained.
+
+Feature engineering is opt-in, preserving the original baseline commands:
+
+```bash
+python -m training.catboost_cv --feature-engineering
+python -m training.xgboost_cv --feature-engineering
+```
+
+Compare runs with and without the flag using the same model parameters and
+CV folds. Improvement must be judged by OOF AUC; added features are not
+guaranteed to improve the score. Engineered submission filenames include `_fe_`,
+and the experiment log records `feature_engineering`.
+
+Programmatic usage:
+
+```python
+from utils.data_loader import EVDataLoader
+
+X, y, X_test, test_ids, cat_cols = EVDataLoader(
+    feature_engineering=True,
+).load()
+```
+
+Run feature validation tests:
+
+```bash
+python -m unittest discover -s tests -v
+```

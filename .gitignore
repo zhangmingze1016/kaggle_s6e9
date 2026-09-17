@@ -3,3 +3,4 @@ __pycache__/
 .DS_Store
 catboost_info
 predictions/*.csv
+experiments.csv

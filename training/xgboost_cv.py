@@ -83,6 +83,12 @@ def parse_args():
         default=0.0
     )
 
+    parser.add_argument(
+        "--feature-engineering",
+        action="store_true",
+        help="Add deterministic EV interaction features",
+    )
+
     return parser.parse_args()
 
 
@@ -98,7 +104,7 @@ def main():
     # Load data
     # --------------------------------------------------------
 
-    loader = EVDataLoader()
+    loader = EVDataLoader(feature_engineering=args.feature_engineering)
 
     X, y, X_test, test_ids, cat_cols = loader.load()
     y = (y == "Yes").astype(int)
@@ -381,6 +387,7 @@ def main():
     experiment_params = {
 
         "model": "XGBoost",
+        "feature_engineering": args.feature_engineering,
 
         "max_depth": args.max_depth,
 

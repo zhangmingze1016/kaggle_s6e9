@@ -1,5 +1,7 @@
 import pandas as pd
 
+from utils.feature_engineering import EVFeatureEngineer
+
 
 class EVDataLoader:
 
@@ -8,12 +10,14 @@ class EVDataLoader:
         train_path="data/train.csv",
         test_path="data/test.csv",
         target="Will_Buy_EV",
-        id_column="id"
+        id_column="id",
+        feature_engineering=False
     ):
         self.train_path = train_path
         self.test_path = test_path
         self.target = target
         self.id_column = id_column
+        self.feature_engineering = feature_engineering
 
     def load(self):
 
@@ -34,6 +38,11 @@ class EVDataLoader:
 
         assert X.columns.tolist() == X_test.columns.tolist(), \
             "Train and test features do not match"
+
+        if self.feature_engineering:
+            engineer = EVFeatureEngineer()
+            X = engineer.transform(X)
+            X_test = engineer.transform(X_test)
 
         cat_cols = X.select_dtypes(
             include=["object", "str"]

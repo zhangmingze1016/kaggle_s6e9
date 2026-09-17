@@ -69,6 +69,12 @@ def parse_args():
         help="Early stopping patience",
     )
 
+    parser.add_argument(
+        "--feature-engineering",
+        action="store_true",
+        help="Add deterministic EV interaction features",
+    )
+
     return parser.parse_args()
 
 
@@ -86,6 +92,7 @@ def main():
 
     experiment_params = {
         "model": "CatBoost",
+        "feature_engineering": args.feature_engineering,
         "iterations": args.iterations,
         "depth": args.depth,
         "learning_rate": args.learning_rate,
@@ -105,7 +112,7 @@ def main():
     # Load data
     # --------------------------------------------------------
 
-    loader = EVDataLoader()
+    loader = EVDataLoader(feature_engineering=args.feature_engineering)
 
     X, y, X_test, test_ids, cat_cols = loader.load()
 

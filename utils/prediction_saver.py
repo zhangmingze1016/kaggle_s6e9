@@ -58,6 +58,9 @@ class PredictionSaver:
             model_short
         ]
 
+        if params.get("feature_engineering", False):
+            filename_parts.append("fe")
+
         # CatBoost / common parameters
         if "depth" in params:
             filename_parts.append(
@@ -142,11 +145,10 @@ class PredictionSaver:
 
         if self.experiment_file.exists():
 
-            experiment_df.to_csv(
+            previous = pd.read_csv(self.experiment_file)
+            pd.concat([previous, experiment_df], ignore_index=True).to_csv(
                 self.experiment_file,
-                mode="a",
-                header=False,
-                index=False
+                index=False,
             )
 
         else:
@@ -174,3 +176,5 @@ class PredictionSaver:
             print(f"{key}: {value}")
 
         return filename
+
+
