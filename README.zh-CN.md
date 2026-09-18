@@ -285,3 +285,24 @@ XGBoost、CatBoost 和最终融合尚未全部完成，不能宣称融合成绩�
 本仓库在该基线之上扩展了可复用的交叉验证流程、防止标签泄漏的折内特征拟合、
 OOF 产物、检查点与断点续跑、多尺度特征、收入邻域编码、模型对比、
 融合诊断和自动化测试。
+
+## 基于 v18 的下一轮实验
+
+v20 复现了 v18，可直接从检查点恢复缺失的 OOF，无需训练：
+
+```bash
+python -m training.recover_oof artifacts/suite/multiscale_lgb/lightgbm_0f835db60a41eb8c
+```
+
+恢复时校验数据哈希、折划分和原提交预测，仅支持已完成的全量实验。
+
+```bash
+# No model training: compare v20 (= v18) with small v22 weights.
+python -m training.ensemble artifacts/predictions/prediction_v020_*.npz artifacts/predictions/prediction_v022_*.npz --challenger-weights 0.1 0.2 0.3
+
+# Optional full training: same folds and features, different model seeds.
+python -m training.lightgbm_cv --preset strong --n-splits 5 --random-seed 42 --model-seed 17 --n-jobs 4
+python -m training.lightgbm_cv --preset strong --n-splits 5 --random-seed 42 --model-seed 2026 --n-jobs 4
+```
+
+第一条命令不训练，只比较基准与加入少量 v22 的融合。后两条会完整训练：保持折划分和特征一致，仅更改模型种子。提交前查看融合报告的 `audit_gain_over_baseline`；它只是 OOF 诊断，并非独立的嵌套验证，不保证涨分。种子实验生成新版本后，用对应 NPZ 的完整路径传给 `training.ensemble`，与基准比较。

@@ -51,7 +51,7 @@ def representation(matrix, mode):
     return pd.DataFrame(matrix).rank(method='average',pct=True).to_numpy()
 
 
-def choose_blend(bundles, seed=20260917):
+def choose_blend(bundles, seed=20260917, challenger_weights=None):
     """Select on half of OOF rows, report remaining rows without re-tuning.
 
     The audit is an OOF diagnostic, NOT fully nested validation: base learners
@@ -67,6 +67,10 @@ def choose_blend(bundles, seed=20260917):
     for left,right in itertools.combinations(range(n),2):
         for weight in (.25,.5,.75):
             w=np.zeros(n);w[left]=weight;w[right]=1-weight;candidates.append(w)
+    if challenger_weights is not None:
+        if n != 2 or any(not 0 < w < 1 for w in challenger_weights):
+            raise ValueError('Challenger weights require two bundles and weights between 0 and 1')
+        candidates = [np.array([1., 0.])] + [np.array([1-w, w]) for w in challenger_weights]
     best=None
     for mode in ('probability','rank'):
         values=representation(oof[selection],mode)
@@ -80,6 +84,8 @@ def choose_blend(bundles, seed=20260917):
     best['full_oof_auc_after_selection']=float(roc_auc_score(y,blended))
     best['single_oof_auc']=[float(roc_auc_score(y,oof[:,i])) for i in range(n)]
     best['single_audit_auc']=[float(roc_auc_score(y[audit],oof[audit,i])) for i in range(n)]
+    best['audit_gain_over_baseline']=best['audit_auc']-best['single_audit_auc'][0]
+    best['challenger_weights']=challenger_weights
     best['prediction_correlation']=pd.DataFrame(oof).corr().to_numpy().tolist()
     best['audit_note']='OOF diagnostic, not fully nested or independent of base model training.'
     best['selection_seed']=seed

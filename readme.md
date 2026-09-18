@@ -321,3 +321,24 @@ This repository extends that baseline with a reusable CV pipeline,
 leakage-safe fold-local feature fitting, OOF artifacts, checkpoint/resume,
 multi-scale features, income-neighborhood encoding, model comparisons,
 ensemble diagnostics, and automated tests.
+
+## Next experiments from v18
+
+The v20 run reproduces v18. Its missing OOF bundle can be recovered without training:
+
+```bash
+python -m training.recover_oof artifacts/suite/multiscale_lgb/lightgbm_0f835db60a41eb8c
+```
+
+Recovery verifies input data hashes, folds and predictions against the saved submission. It supports completed full-data runs only.
+
+```bash
+# No model training: compare v20 (= v18) with small v22 weights.
+python -m training.ensemble artifacts/predictions/prediction_v020_*.npz artifacts/predictions/prediction_v022_*.npz --challenger-weights 0.1 0.2 0.3
+
+# Optional full training: same folds and features, different model seeds.
+python -m training.lightgbm_cv --preset strong --n-splits 5 --random-seed 42 --model-seed 17 --n-jobs 4
+python -m training.lightgbm_cv --preset strong --n-splits 5 --random-seed 42 --model-seed 2026 --n-jobs 4
+```
+
+Inspect `audit_gain_over_baseline` in the blend report before submitting. This is an OOF diagnostic, not independent nested validation; gains are not guaranteed. New seed runs produce new versioned bundles; use their exact paths with `training.ensemble` to compare them with the baseline.

@@ -71,6 +71,11 @@ class PipelineTest(unittest.TestCase):
             np.testing.assert_array_equal(bundles[0]['oof_pred'],bundles[1]['oof_pred'])
             np.testing.assert_array_equal(bundles[0]['test_pred'],bundles[1]['test_pred'])
             oof,test,report=choose_blend(bundles)
+            _,_,small=choose_blend(bundles,challenger_weights=[.1,.2,.3])
+            self.assertEqual(small['weights'],[1.,0.])
+            self.assertEqual(small['audit_gain_over_baseline'],0.)
+            with self.assertRaises(ValueError):
+                choose_blend(bundles,challenger_weights=[1.1])
             self.assertEqual(report['audit_auc'],1.)
             self.assertAlmostEqual(sum(report['weights']),1.)
             bundles[1]['fold_ids']=1-bundles[1]['fold_ids']

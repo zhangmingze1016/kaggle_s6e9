@@ -14,9 +14,10 @@ def main(argv=None):
     p.add_argument('--artifact-dir',default='artifacts/predictions')
     p.add_argument('--experiment-file',default='artifacts/experiments.csv')
     p.add_argument('--seed',type=int,default=20260917)
+    p.add_argument('--challenger-weights', nargs='+', type=float, help='Two bundles: baseline first, challenger second; e.g. .1 .2 .3')
     a=p.parse_args(argv)
     bundles=load_bundles(a.bundles)
-    oof,test,report=choose_blend(bundles,a.seed)
+    oof,test,report=choose_blend(bundles,a.seed,a.challenger_weights)
     report['sources']=a.bundles
     ref=bundles[0]
     params={'model':'Ensemble','blend_mode':report['mode'],
