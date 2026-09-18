@@ -238,3 +238,27 @@ python -m unittest discover -s tests -v
 
 新增完整训练的实际成绩见 `experiments.csv` 和 Suite 的 `result.json`。
 公开高分方法的来源和不能复现的部分见 [SOURCES.md](SOURCES.md)。
+
+## 2026-09-17 本地验证与交接
+
+本次已完成代码整合并通过 11 项测试、四候选的小规模端到端训练/融合/续跑验证。
+全量训练按用户要求暂停，交由用户继续执行：
+
+```bash
+source .venv/bin/activate
+python -m training.experiment_suite --n-splits 5 --n-jobs 4
+```
+
+上述命令与已启动的配置一致，会读取现有完整折检查点；未完成折重新训练。
+无需删除 `artifacts/suite/`。代码或依赖发生变化时签名可能改变，旧折不会误用。
+
+| 已完成的全量实验 | 外层折数 | OOF AUC | 提交版本 |
+|---|---:|---:|---|
+| 单独保留的原版 Notebook LightGBM | 10 | 0.94580 | v017 |
+| 新增多尺度 + 邻域 + 三重 TE LightGBM | 5 | 0.94612535 | v018 |
+
+两者折数不同，仅作记录，不能据此认定稳定提升。统一 5 折的 Notebook 对照、
+XGBoost、CatBoost 和最终融合尚未全部完成，不能宣称融合成绩已经提升。
+
+现有两份完整提交都在本地 `predictions/` 中；v018 另有 OOF bundle。
+原版脚本永久单独保存在 `training/lightgbm_reference_cv.py`。
