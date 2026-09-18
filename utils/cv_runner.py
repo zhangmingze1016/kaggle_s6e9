@@ -61,6 +61,7 @@ def parse_args(model, argv=None):
             parser.add_argument('--'+key.replace('_','-'), type=type(value), default=value)
     parser.add_argument('--te-scope', choices=['numeric', 'all', 'bins'], default='numeric')
     parser.add_argument('--income-neighbors', action=argparse.BooleanOptionalAction, default=preliminary.preset=='strong')
+    parser.add_argument('--local-windows', action='store_true', help='Independent local-window feature view instead of exact income/commute TE and income neighbors')
     parser.add_argument('--te-cv', type=int, default=5)
     parser.add_argument('--random-seed', type=int, default=42)
     parser.add_argument('--model-seed', type=int, default=42)
@@ -78,6 +79,8 @@ def parse_args(model, argv=None):
     parser.add_argument('--resume', action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument('--sample-size', type=int, default=None, help='Stratified development sample; not full-data CV')
     args = parser.parse_args(argv)
+    if args.local_windows and (not args.feature_engineering or args.feature_recipe != 'multiscale' or not args.target_encoding or args.original_data):
+        parser.error('local-windows requires multiscale target encoding without original-data')
     if args.original_data and (not args.feature_engineering or args.feature_recipe != 'multiscale'):
         parser.error('original-data currently requires feature engineering with the multiscale recipe')
     if args.n_splits < 2 or args.te_cv < 2:
@@ -157,6 +160,8 @@ def file_hash(path):
 
 def run_cv(name, args):
     params = {'model':name, **vars(args)}
+    if args.local_windows:
+        params['effective_income_neighbors'] = False
     versions = {p:importlib.metadata.version(p) for p in ('numpy','pandas','scikit-learn',name.lower())}
     identity = {k:v for k,v in params.items() if k not in (
         'resume','output_dir','artifact_dir','experiment_file','run_root','log_period')}
@@ -166,6 +171,8 @@ def run_cv(name, args):
     if args.original_data:
         identity['data_hashes'][args.original_data] = file_hash(args.original_data)
         identity['code_hashes']['utils/original_data.py'] = file_hash('utils/original_data.py')
+    if args.local_windows:
+        identity['code_hashes']['utils/local_windows.py'] = file_hash('utils/local_windows.py')
     identity['versions'] = versions
     signature = hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()[:16]
     run_dir = Path(args.run_root)/f'{name.lower()}_{signature}'
@@ -205,6 +212,11 @@ def run_cv(name, args):
         else:
             print(f'Fold {fold+1}/{args.n_splits}: train={len(fit)}, valid={len(valid)}',flush=True)
             frames=[X.iloc[fit],X.iloc[valid],T]
+            if args.local_windows:
+                from utils.local_windows import LocalWindowEncoder, replace_exact_target_features
+                local = LocalWindowEncoder(args.te_cv,args.random_seed)
+                windows = [local.fit_transform(frames[0],y.iloc[fit]),
+                           local.transform(frames[1]),local.transform(frames[2])]
             if args.target_encoding or args.income_neighbors or (
                 args.feature_engineering and args.feature_recipe=='multiscale'):
                 if (args.feature_recipe=='notebook' and args.te_scope=='numeric'
@@ -214,9 +226,11 @@ def run_cv(name, args):
                     encoder=FoldFeatureEngineer(
                         args.feature_recipe if args.feature_engineering else 'raw',
                         args.target_encoding,args.te_scope,args.te_cv,args.random_seed,
-                        args.income_neighbors)
+                        args.income_neighbors and not args.local_windows)
                 frames=[encoder.fit_transform(frames[0],y.iloc[fit]),
                         encoder.transform(frames[1]),encoder.transform(frames[2])]
+            if args.local_windows:
+                frames = [replace_exact_target_features(frame,window) for frame,window in zip(frames,windows)]
             if original is not None:
                 frames = [pd.concat([frame, original.transform(frame)],axis=1) for frame in frames]
             pv,pt,best=fit_predict(name,args,frames,y.iloc[fit],y.iloc[valid],cats)

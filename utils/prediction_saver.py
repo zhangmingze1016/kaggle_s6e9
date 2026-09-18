@@ -74,7 +74,9 @@ class PredictionSaver:
                 parts.append('te3')
             if params.get('original_data'):
                 parts.append('original')
-            if params.get('income_neighbors'):
+            if params.get('local_windows'):
+                parts.append('windows')
+            if params.get('income_neighbors') and not params.get('local_windows'):
                 parts.append('neighbors')
             for keys,prefix in [(('depth','max_depth'),'d'),(('learning_rate',),'lr'),
                                 (('iterations','n_estimators'),'iter')]:

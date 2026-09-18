@@ -379,3 +379,15 @@ python -m training.lightgbm_cv --preset strong --original-data --n-jobs 4
 ```
 
 Preparation is needed only if the source has not been downloaded. Raw source data stays in `data/external/`; audits go to `artifacts/external_data/`. See [source verification, safeguards and comparison plan](docs/original_data_experiment.md).
+
+## Local-window screening experiment
+
+```bash
+python -m training.window_screen
+```
+
+Runs a matched 60,000-row, five-fold comparison of the strong baseline and a local-window feature view, with at most 1,000 trees per fold. The same sampled rows, split seed 42 and model seed 42 are used in both arms. This command trains two small-data CV runs, not a full-data experiment. All results, sample submission CSVs, logs and OOF files stay under `artifacts/window_screen/`.
+
+The new view replaces six exact-income/commute TE columns and the old income-neighborhood block with 12 local-window columns: cross-fitted smoothed means and log counts for income ±25/100/500 USD and commute ±1/3/10 km. Smoothing is fixed at 20. Raw features, digits, frequencies and remaining target keys are retained. Prefix sums and binary search avoid a quadratic pairwise distance matrix. Unseen empty windows and missing values receive the inner-training prior; validation/test statistics use only the outer training labels. `--local-windows` is opt-in; `effective_income_neighbors=false` records its replacement of the old neighborhood block.
+
+`comparison.json` reports paired fold deltas, correlation, and a predeclared 50/50 probability average, without weight search or automatic promotion. Sample OOF is not comparable to historical full-data OOF; window density changes with sample size. A favorable screen is only a reason for further validation, not evidence of public-score improvement. After review, the optional full-data command is `python -m training.lightgbm_cv --preset strong --local-windows --n-jobs 4`. Do not run it automatically.

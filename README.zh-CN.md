@@ -343,3 +343,15 @@ python -m training.lightgbm_cv --preset strong --original-data --n-jobs 4
 ```
 
 本机已准备好数据，可直接运行第二条。原始 CSV 放在 `data/external/`，审计报告放在 `artifacts/external_data/`，不会混入提交目录。完整核查和对照方案见[实验说明](docs/original_data_experiment.md)。
+
+## 局部窗口小规模对照
+
+```bash
+python -m training.window_screen
+```
+
+在同一批 6 万行样本、相同五折、划分和模型种子 42 下，分别训练原强基线和局部窗口方案，每折最多 1000 棵树。所有样本 CSV、OOF、日志和报告均放在 `artifacts/window_screen/`，不会混入正式提交目录，也不会自动启动全量训练。
+
+新方案替换六列精确收入/通勤目标编码和原收入邻域块，增加收入 ±25/100/500 美元、通勤 ±1/3/10 公里的局部平滑购买率与对数样本数，共 12 列。平滑强度固定 20；原始特征、数字位、频率和其他编码保留。训练行采用内层交叉拟合，验证/测试仅使用外层训练标签；空窗口及缺失值回退到相应训练集先验。排序与前缀和避免构造巨大距离矩阵。`--local-windows` 默认关闭，开启时记录 `effective_income_neighbors=false`，表示替换了旧邻域块。
+
+查看 `comparison.json` 的逐折变化、相关性和预先固定的 50/50 平均结果，不搜索权重。样本 OOF 不能直接与历史全量 OOF 比较，且窗口密度随样本量变化；小规模有收益也不代表全量或公开榜一定提升。经复盘决定需要全量验证时，再运行 `python -m training.lightgbm_cv --preset strong --local-windows --n-jobs 4`，不要自动接着跑。
