@@ -260,3 +260,5 @@ XGBoost、CatBoost 和最终融合尚未全部完成，不能宣称融合成绩�
 现有两份完整提交都在本地 `predictions/` 中。OOF bundle 若已删除，
 可用相同配置续跑，从保留的完整折检查点重新生成。
 原版脚本永久单独保存在 `training/lightgbm_reference_cv.py`。
+
+已确认的公开榜成绩：v018 为 **0.94639**（用户于 2026-09-17 提供的 Kaggle 提交结果）。

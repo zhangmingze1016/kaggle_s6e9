@@ -362,11 +362,9 @@ class FeatureEngineer:
         return df
 
 class NotebookFeatureEngineer:
-    """FE-B + digits + transductive frequencies from Rugved Bane's notebook.
+    """Financial interactions, digits and transductive frequencies.
 
-    Reference: kaggle.com/code/rugvedbane/0-94590-lb-stacking-failed-this-didn-t
-    scriptVersionId=349757944. No labels are used in this class. Frequencies
-    intentionally use train + test, matching the competition notebook.
+    No labels are used in this class. Frequencies use train + test.
     """
 
     NUMERIC_COLUMNS = (
@@ -416,7 +414,7 @@ class NotebookFeatureEngineer:
         digits = {}
         for col in self.NUMERIC_COLUMNS:
             for k in range(-4, 4):
-                # Keep the notebook's floating-point floor division exactly;
+                # Preserve floating-point floor division;
                 # rounding first would change its generator-artifact features.
                 digits[f'{col}_digit{k}'] = (
                     combined[col].fillna(0) // (10.0 ** k) % 10
@@ -492,7 +490,7 @@ class TripleTargetEncoder:
 
 
 class MultiScaleFeatureEngineer:
-    """Row-local multiscale keys inspired by jazivxt's Zoom Zoom experiment.
+    """Row-local multiscale income and commute keys.
 
     Frequency/target/neighborhood estimates are deliberately deferred to folds.
     No hard-coded target-derived income thresholds or external predictions.
