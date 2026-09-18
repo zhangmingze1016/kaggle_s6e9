@@ -360,3 +360,11 @@ python -m training.review_experiments
 ```
 
 `artifacts/reviews/summary.csv`, `artifacts/reviews/folds.csv`, `artifacts/reviews/comparison.json`
+
+Standalone fold-structure diagnosis (keeps the main seed 42 unchanged):
+
+```bash
+python -m training.diagnose_folds
+```
+
+[Fold diagnosis report](docs/fold_diagnosis.md). `--probe` runs 25 bounded diagnostic models across five CV seeds. Reports: `artifacts/fold_diagnostics/`.
