@@ -368,3 +368,14 @@ python -m training.diagnose_folds
 ```
 
 [Fold diagnosis report](docs/fold_diagnosis.md). `--probe` runs 25 bounded diagnostic models across five CV seeds. Reports: `artifacts/fold_diagnostics/`.
+
+## Optional original-data statistics
+
+The public [original EV dataset](https://www.kaggle.com/datasets/itzzomkar/ev-adoption-behavior-and-range-anxiety), published by itzzomkar (CC0, version 1), supplies 13 additional smoothed target-statistic features. The encoder uses only external labels and excludes exact feature overlaps with competition train/test. The option is off by default; it preserves the seed-42 five-fold baseline. This experiment has not yet been evaluated with full training.
+
+```bash
+python -m training.prepare_original_data
+python -m training.lightgbm_cv --preset strong --original-data --n-jobs 4
+```
+
+Preparation is needed only if the source has not been downloaded. Raw source data stays in `data/external/`; audits go to `artifacts/external_data/`. See [source verification, safeguards and comparison plan](docs/original_data_experiment.md).

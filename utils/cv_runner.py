@@ -69,6 +69,8 @@ def parse_args(model, argv=None):
     parser.add_argument('--log-period', type=int, default=100)
     parser.add_argument('--train-path', default='data/train.csv')
     parser.add_argument('--test-path', default='data/test.csv')
+    parser.add_argument('--original-data', nargs='?', const='data/external/ev_adoption.csv', default=None,
+                        help='Opt in to 13 external-only target-statistic features; optional source CSV path')
     parser.add_argument('--output-dir', default='predictions')
     parser.add_argument('--artifact-dir', default='artifacts/predictions')
     parser.add_argument('--experiment-file', default='artifacts/experiments.csv')
@@ -76,6 +78,8 @@ def parse_args(model, argv=None):
     parser.add_argument('--resume', action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument('--sample-size', type=int, default=None, help='Stratified development sample; not full-data CV')
     args = parser.parse_args(argv)
+    if args.original_data and (not args.feature_engineering or args.feature_recipe != 'multiscale'):
+        parser.error('original-data currently requires feature engineering with the multiscale recipe')
     if args.n_splits < 2 or args.te_cv < 2:
         parser.error('n-splits and te-cv must be at least 2')
     if args.sample_size is not None and args.sample_size < 20:
@@ -159,6 +163,9 @@ def run_cv(name, args):
     identity['data_hashes'] = {p:file_hash(p) for p in (args.train_path,args.test_path)}
     identity['code_hashes'] = {p:file_hash(p) for p in (
         'utils/cv_runner.py','utils/data_loader.py','utils/feature_engineering.py')}
+    if args.original_data:
+        identity['data_hashes'][args.original_data] = file_hash(args.original_data)
+        identity['code_hashes']['utils/original_data.py'] = file_hash('utils/original_data.py')
     identity['versions'] = versions
     signature = hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()[:16]
     run_dir = Path(args.run_root)/f'{name.lower()}_{signature}'
@@ -174,6 +181,13 @@ def run_cv(name, args):
     print(f'Train {X.shape}; test {T.shape}; categorical={len(cats)}',flush=True)
     if y.value_counts().min() < args.n_splits:
         raise ValueError('Not enough observations per class for outer CV')
+    original = None
+    if args.original_data:
+        from utils.original_data import OriginalTargetStatistics, load_source
+        original = OriginalTargetStatistics().fit(load_source(args.original_data),
+            [pd.read_csv(args.train_path), pd.read_csv(args.test_path)])
+        (run_dir/'original_data_audit.json').write_text(json.dumps(original.audit_,indent=2))
+        print(f'External source: {original.audit_}',flush=True)
     oof = np.full(len(X),np.nan)
     test_pred = np.zeros(len(T))
     folds = np.full(len(X),-1,dtype=np.int16)
@@ -203,6 +217,8 @@ def run_cv(name, args):
                         args.income_neighbors)
                 frames=[encoder.fit_transform(frames[0],y.iloc[fit]),
                         encoder.transform(frames[1]),encoder.transform(frames[2])]
+            if original is not None:
+                frames = [pd.concat([frame, original.transform(frame)],axis=1) for frame in frames]
             pv,pt,best=fit_predict(name,args,frames,y.iloc[fit],y.iloc[valid],cats)
             del frames
             temp=checkpoint.with_suffix('.tmp.npz')

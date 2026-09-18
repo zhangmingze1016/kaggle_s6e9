@@ -72,6 +72,8 @@ class PredictionSaver:
                 parts+=['fe',params.get('feature_recipe','legacy')]
             if params.get('target_encoding'):
                 parts.append('te3')
+            if params.get('original_data'):
+                parts.append('original')
             if params.get('income_neighbors'):
                 parts.append('neighbors')
             for keys,prefix in [(('depth','max_depth'),'d'),(('learning_rate',),'lr'),

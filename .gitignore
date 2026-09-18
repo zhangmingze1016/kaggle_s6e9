@@ -8,3 +8,5 @@ artifacts/
 predictions/*.npz
 predictions/*.json
 .prediction_saver.lock
+
+data/external/

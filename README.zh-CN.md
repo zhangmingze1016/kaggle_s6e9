@@ -332,3 +332,14 @@ python -m training.diagnose_folds
 ```
 
 [Fold diagnosis report](docs/fold_diagnosis.md). `--probe` runs 25 bounded diagnostic models across five CV seeds. Reports: `artifacts/fold_diagnostics/`.
+
+## 可选：原始数据统计特征
+
+使用 itzzomkar 发布的[原始 EV 数据](https://www.kaggle.com/datasets/itzzomkar/ev-adoption-behavior-and-range-anxiety)（CC0、版本 1），新增 13 个平滑目标统计特征。编码器只读取外部标签，并先排除与比赛训练、测试集特征完全重叠的外部行。默认关闭，保留原来的五折、seed=42 和模型配置。目前尚未完成全量训练，不能认定会提分。
+
+```bash
+python -m training.prepare_original_data
+python -m training.lightgbm_cv --preset strong --original-data --n-jobs 4
+```
+
+本机已准备好数据，可直接运行第二条。原始 CSV 放在 `data/external/`，审计报告放在 `artifacts/external_data/`，不会混入提交目录。完整核查和对照方案见[实验说明](docs/original_data_experiment.md)。
