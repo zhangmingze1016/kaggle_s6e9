@@ -268,3 +268,20 @@ XGBoost、CatBoost 和最终融合尚未全部完成，不能宣称融合成绩�
 原版脚本永久单独保存在 `training/lightgbm_reference_cv.py`。
 
 已确认的公开榜成绩：v018 为 **0.94639**（用户于 2026-09-17 提供的 Kaggle 提交结果）。
+
+## 致谢
+
+本项目的 `notebook` 特征方案和单独保留的参考 LightGBM 配置，改编自 Rugved Bane 的 Kaggle Notebook：
+
+["0.94590 LB — Stacking failed, this didn't"](https://www.kaggle.com/code/rugvedbane/0-94590-lb-stacking-failed-this-didn-t)
+
+其中，以下方法受到该参考方案的启发：
+
+- 数字位拆分
+- 频率编码
+- 三重目标编码
+- 参考 LightGBM 配置
+
+本仓库在该基线之上扩展了可复用的交叉验证流程、防止标签泄漏的折内特征拟合、
+OOF 产物、检查点与断点续跑、多尺度特征、收入邻域编码、模型对比、
+融合诊断和自动化测试。

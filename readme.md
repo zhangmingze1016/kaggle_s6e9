@@ -301,3 +301,23 @@ dependency signatures match. The original script is retained separately in
 
 Confirmed public leaderboard score: **0.94639** for v018, based on the Kaggle
 submission result supplied by the user on 2026-09-17.
+
+## Acknowledgements
+
+The `notebook` feature recipe and the preserved reference LightGBM
+configuration were adapted from Rugved Bane's Kaggle notebook:
+
+"0.94590 LB — Stacking failed, this didn't"
+[https://www.kaggle.com/code/rugvedbane/0-94590-lb-stacking-failed-this-didn-t](https://www.kaggle.com/code/rugvedbane/0-94590-lb-stacking-failed-this-didn-t)
+
+In particular, the reference approach motivated:
+
+- digit decomposition
+- frequency encoding
+- triple target encoding
+- the reference LightGBM configuration
+
+This repository extends that baseline with a reusable CV pipeline,
+leakage-safe fold-local feature fitting, OOF artifacts, checkpoint/resume,
+multi-scale features, income-neighborhood encoding, model comparisons,
+ensemble diagnostics, and automated tests.
