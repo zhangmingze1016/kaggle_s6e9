@@ -9,11 +9,19 @@ import pandas as pd
 
 
 class PredictionSaver:
-    def __init__(self, output_dir='predictions', experiment_file='experiments.csv'):
+    def __init__(self, output_dir='predictions', experiment_file='experiments.csv',
+                 artifact_dir='artifacts/predictions'):
         self.output_dir=Path(output_dir)
         self.output_dir.mkdir(parents=True,exist_ok=True)
+        self.artifact_dir=Path(artifact_dir)
+        if self.artifact_dir.resolve() == self.output_dir.resolve():
+            raise ValueError('artifact_dir must differ from output_dir')
+        self.artifact_dir.mkdir(parents=True,exist_ok=True)
         self.experiment_file=Path(experiment_file)
         self.experiment_file.parent.mkdir(parents=True,exist_ok=True)
+
+    def artifact_path(self, submission, suffix):
+        return self.artifact_dir / Path(submission).with_suffix(suffix).name
 
     @staticmethod
     def _probabilities(values, size):
@@ -75,13 +83,13 @@ class PredictionSaver:
             filename=self.output_dir/('_'.join(parts)+'.csv')
             pd.DataFrame({'id':ids,target:predictions}).to_csv(filename,index=False)
             if bundle is not None:
-                np.savez_compressed(filename.with_suffix('.npz'),**bundle)
+                np.savez_compressed(self.artifact_path(filename,'.npz'),**bundle)
             metadata={'version':version,**params,'oof_auc':float(score),
                 'fold_mean_auc':fold_mean,'fold_std_auc':fold_std}
             if best_iterations is not None:
                 metadata['best_iterations']=','.join(map(str,best_iterations))
                 metadata['mean_best_iteration']=float(np.mean(best_iterations))
-            filename.with_suffix('.json').write_text(json.dumps(metadata,indent=2,default=str))
+            self.artifact_path(filename,'.json').write_text(json.dumps(metadata,indent=2,default=str))
             record=pd.DataFrame([metadata])
             if self.experiment_file.exists() and self.experiment_file.stat().st_size:
                 record=pd.concat([pd.read_csv(self.experiment_file),record],ignore_index=True)

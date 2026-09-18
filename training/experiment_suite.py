@@ -42,6 +42,7 @@ def main(argv=None):
     parser.add_argument('--train-path',default='data/train.csv')
     parser.add_argument('--test-path',default='data/test.csv')
     parser.add_argument('--output-dir',default='predictions')
+    parser.add_argument('--artifact-dir',default='artifacts/predictions')
     parser.add_argument('--experiment-file',default='experiments.csv')
     parser.add_argument('--run-root',default='artifacts/suite')
     a=parser.parse_args(argv)
@@ -55,6 +56,7 @@ def main(argv=None):
         options=flags+['--n-splits',str(a.n_splits),'--n-jobs',str(a.n_jobs),
             '--random-seed',str(a.random_seed),'--train-path',a.train_path,
             '--test-path',a.test_path,'--output-dir',a.output_dir,
+            '--artifact-dir',a.artifact_dir,
             '--experiment-file',a.experiment_file,'--run-root',str(root/candidate)]
         if a.sample_size:
             options+=['--sample-size',str(a.sample_size)]
@@ -73,7 +75,8 @@ def main(argv=None):
     if len(records)>=2:
         status.update(state='blending');write_status()
         result=ensemble_main([r['bundle'] for r in records]+[
-            '--output-dir',a.output_dir,'--experiment-file',a.experiment_file])
+            '--output-dir',a.output_dir,'--artifact-dir',a.artifact_dir,
+            '--experiment-file',a.experiment_file])
         status['selected_submission']=str(result)
     else:
         status['selected_submission']=records[0]['submission']

@@ -70,6 +70,7 @@ def parse_args(model, argv=None):
     parser.add_argument('--train-path', default='data/train.csv')
     parser.add_argument('--test-path', default='data/test.csv')
     parser.add_argument('--output-dir', default='predictions')
+    parser.add_argument('--artifact-dir', default='artifacts/predictions')
     parser.add_argument('--experiment-file', default='experiments.csv')
     parser.add_argument('--run-root', default='artifacts/runs')
     parser.add_argument('--resume', action=argparse.BooleanOptionalAction, default=True)
@@ -154,7 +155,7 @@ def run_cv(name, args):
     params = {'model':name, **vars(args)}
     versions = {p:importlib.metadata.version(p) for p in ('numpy','pandas','scikit-learn',name.lower())}
     identity = {k:v for k,v in params.items() if k not in (
-        'resume','output_dir','experiment_file','run_root','log_period')}
+        'resume','output_dir','artifact_dir','experiment_file','run_root','log_period')}
     identity['data_hashes'] = {p:file_hash(p) for p in (args.train_path,args.test_path)}
     identity['code_hashes'] = {p:file_hash(p) for p in (
         'utils/cv_runner.py','utils/data_loader.py','utils/feature_engineering.py')}
@@ -220,11 +221,12 @@ def run_cv(name, args):
             'total_folds':args.n_splits,'fold_scores':scores,'best_iterations':best_iterations},indent=2))
     score=float(roc_auc_score(y,oof))
     params.update(sample_rows=len(X),test_rows=len(T),run_dir=str(run_dir))
-    path=PredictionSaver(args.output_dir,args.experiment_file).save(
+    saver=PredictionSaver(args.output_dir,args.experiment_file,args.artifact_dir)
+    path=saver.save(
         test_ids,test_pred,score,params,float(np.mean(scores)),float(np.std(scores)),
         best_iterations,train_ids=loader.train_ids,y_true=y,oof_predictions=oof,fold_ids=folds)
     result={'oof_auc':score,'fold_scores':scores,'submission':str(path),
-            'bundle':str(path.with_suffix('.npz')),'params':params}
+            'bundle':str(saver.artifact_path(path,'.npz')),'params':params}
     (run_dir/'result.json').write_text(json.dumps(result,indent=2))
     print(f'Complete OOF AUC={score:.7f}; {path}',flush=True)
     return result

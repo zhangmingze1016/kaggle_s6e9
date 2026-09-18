@@ -56,7 +56,7 @@ class PipelineTest(unittest.TestCase):
             p=Path(tmp)
             y=np.tile([0,1],20)
             fold=np.repeat([0,1],20)
-            saver=PredictionSaver(p,p/'experiments.csv')
+            saver=PredictionSaver(p/'predictions',p/'experiments.csv',p/'artifacts')
             paths=[]
             for reverse in (False,True):
                 idx=np.arange(40)[::-1] if reverse else np.arange(40)
@@ -64,7 +64,9 @@ class PipelineTest(unittest.TestCase):
                 preds=np.array([.8,.2]) if reverse else np.array([.2,.8])
                 out=saver.save(tids,preds,1.,{'model':'LightGBM'},train_ids=idx,
                     y_true=y[idx],oof_predictions=.1+.8*y[idx],fold_ids=fold[idx])
-                paths.append(out.with_suffix('.npz'))
+                paths.append(saver.artifact_path(out,'.npz'))
+                self.assertTrue(saver.artifact_path(out,'.json').is_file())
+                self.assertTrue(all(f.suffix=='.csv' for f in (p/'predictions').iterdir()))
             bundles=load_bundles(paths)
             np.testing.assert_array_equal(bundles[0]['oof_pred'],bundles[1]['oof_pred'])
             np.testing.assert_array_equal(bundles[0]['test_pred'],bundles[1]['test_pred'])
@@ -78,7 +80,7 @@ class PipelineTest(unittest.TestCase):
 
     def test_saver_rejects_partial_oof(self):
         with tempfile.TemporaryDirectory() as tmp:
-            saver=PredictionSaver(tmp,Path(tmp)/'log.csv')
+            saver=PredictionSaver(Path(tmp)/'predictions',Path(tmp)/'log.csv',Path(tmp)/'artifacts')
             with self.assertRaises(ValueError):
                 saver.save([1],[.5],.5,{},train_ids=[0])
             with self.assertRaises(ValueError):

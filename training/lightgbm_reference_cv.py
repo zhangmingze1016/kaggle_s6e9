@@ -125,6 +125,7 @@ def parse_args():
     parser.add_argument("--train-path", default="data/train.csv")
     parser.add_argument("--test-path", default="data/test.csv")
     parser.add_argument("--output-dir", default="predictions")
+    parser.add_argument("--artifact-dir", default="artifacts/predictions")
     parser.add_argument("--experiment-file", default="experiments.csv")
     return parser.parse_args()
 
@@ -730,6 +731,7 @@ def main():
 
     PredictionSaver(
         output_dir=args.output_dir, experiment_file=args.experiment_file,
+        artifact_dir=args.artifact_dir,
     ).save(
 
         ids=test_ids,

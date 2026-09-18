@@ -50,7 +50,8 @@ utils/
   cv_runner.py            # Shared folds, encoding, checkpoints and evaluation
   prediction_saver.py     # Versioned predictions and experiment records
   ensemble.py             # ID alignment, weight selection and diagnostics
-predictions/              # Submission CSVs, OOF NPZs and configuration JSONs
+predictions/              # Submission CSVs only
+artifacts/predictions/    # OOF NPZs, configuration JSONs and blend reports
 artifacts/                # Fold checkpoints, logs and progress; excluded from Git
 tests/
 ```
@@ -86,7 +87,7 @@ python -m training.lightgbm_cv --no-target-encoding
 python -m training.lightgbm_reference_cv
 ```
 
-This entry point preserves the script from `175fba1`: 10 folds, learning rate
+This entry point preserves the training configuration from `175fba1`: 10 folds, learning rate
 0.005, up to 100000 iterations, early-stopping patience 500, digit/frequency
 features and triple target encoding. It still calls shared data, feature and
 prediction utilities; the corresponding feature formulas are unchanged.
@@ -206,11 +207,11 @@ dependency changes. Incompatible checkpoints are not reused.
 Checkpoints contain predictions, not deployable models. Repeating a completed run
 may create another submission version.
 
-After full CV, three files sharing a prefix are saved in `predictions/`:
+After full CV, files share a prefix but are stored separately:
 
-- `.csv`: `id,Will_Buy_EV`, ready for Kaggle submission.
-- `.npz`: training IDs, labels, OOF predictions, fold IDs, test IDs and predictions.
-- `.json`: configuration and scores. `experiments.csv` also receives a record,
+- `predictions/*.csv`: `id,Will_Buy_EV`, ready for Kaggle submission.
+- `artifacts/predictions/*.npz`: training IDs, labels, OOF predictions, fold IDs, test IDs and predictions.
+- `artifacts/predictions/*.json`: configuration, scores and blend reports. `experiments.csv` also receives a record,
   accommodating different model fields.
 
 Incomplete bundles, duplicate IDs, inconsistent labels/folds and invalid
@@ -219,13 +220,13 @@ predictions without retraining. Sample runs cannot be blended with full-data OOF
 
 The suite also writes `artifacts/suite/suite_status.json` and per-candidate logs.
 Modern model entry points and the suite support `--train-path`, `--test-path`,
-`--output-dir`, `--experiment-file` and `--run-root`. The preserved original entry
+`--output-dir`, `--artifact-dir`, `--experiment-file` and `--run-root`. The preserved original entry
 point does not support fold recovery. Use `--help` for each command's options.
 
 ## Ensemble evaluation limits
 
 ```bash
-python -m training.ensemble predictions/model_a.npz predictions/model_b.npz
+python -m training.ensemble artifacts/predictions/model_a.npz artifacts/predictions/model_b.npz
 ```
 
 Inputs are aligned by ID and must share training rows, labels and folds.

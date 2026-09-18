@@ -47,7 +47,8 @@ utils/
   cv_runner.py        # 三个模型共用分折、编码、检查点和评估逻辑
   prediction_saver.py # PredictionSaver，保留版本号与实验日志
   ensemble.py         # ID 对齐、权重选择、融合诊断
-predictions/          # 提交 CSV、OOF NPZ、配置 JSON
+predictions/          # 仅提交 CSV
+artifacts/predictions/ # OOF NPZ、配置 JSON、融合报告
 artifacts/            # 逐折检查点、运行日志和进度（不提交 Git）
 tests/
 ```
@@ -82,7 +83,7 @@ python -m training.lightgbm_cv --no-target-encoding
 python -m training.lightgbm_reference_cv
 ```
 
-此入口从 `175fba1` 原样保存，保留原版训练脚本、10 折、学习率 0.005、
+此入口基于 `175fba1` 保留原版训练配置：10 折、学习率 0.005、
 最多 100000 轮、500 轮提前停止、数字位/频率特征和三重目标编码。
 仍调用共享的数据/特征/预测工具（对应特征公式未改），不会被 strong preset 替换。
 它与旧版本一样只在全部折完成后保存提交 CSV 和实验记录，没有新版的逐折恢复/OOF bundle。
@@ -186,11 +187,11 @@ artifacts/runs/<model>_<signature>/
 修改源文件（包括注释）、参数或依赖可能产生新签名，避免错误复用旧检查点。
 检查点保存预测，不保存可部署模型。重跑完成的任务可能生成新的提交版本。
 
-完整 CV 结束后 `predictions/` 产生同名前缀的三个文件：
+完整 CV 结束后，文件使用相同前缀，分别保存：
 
-- `.csv`：`id,Will_Buy_EV`，可提交 Kaggle。
-- `.npz`：训练 ID、标签、OOF 预测、fold ID、测试 ID、测试预测，供融合使用。
-- `.json`：配置与成绩；`experiments.csv` 追加兼容不同模型字段的记录。
+- `predictions/*.csv`：`id,Will_Buy_EV`，可提交 Kaggle。
+- `artifacts/predictions/*.npz`：训练 ID、标签、OOF 预测、fold ID、测试 ID、测试预测，供融合使用。
+- `artifacts/predictions/*.json`：配置、成绩和融合报告；`experiments.csv` 追加兼容不同模型字段的记录。
 
 OOF bundle 缺行、重复 ID、标签不一致、折不一致或概率非法都会被拒绝。
 旧版本只保存提交 CSV，不能凭空补出 OOF，需要重新训练才可用于本地验证融合。
@@ -198,12 +199,12 @@ OOF bundle 缺行、重复 ID、标签不一致、折不一致或概率非法都
 
 Suite 另外保存 `artifacts/suite/suite_status.json` 和每个候选的 `.log`。
 新版模型入口和 Suite 支持 `--train-path`、`--test-path`、`--output-dir`、
-`--experiment-file`、`--run-root`。原版保留入口不支持逐折恢复；详细参数用 `--help` 查看。
+`--artifact-dir`、`--experiment-file`、`--run-root`。原版保留入口不支持逐折恢复；详细参数用 `--help` 查看。
 
 ## 融合评估的边界
 
 ```bash
-python -m training.ensemble predictions/model_a.npz predictions/model_b.npz
+python -m training.ensemble artifacts/predictions/model_a.npz artifacts/predictions/model_b.npz
 ```
 
 先按 ID 对齐，要求同一训练集、标签和分折；比较单模型、等权平均以及模型两两
