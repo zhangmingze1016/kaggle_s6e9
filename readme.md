@@ -1,15 +1,19 @@
 # Kaggle S6E9 — Predicting Electric Vehicle Purchases
 
-预测 `Will_Buy_EV = Yes` 的概率，评价指标为 ROC AUC。
-本项目采用模块化训练流程，用统一交叉验证比较 LightGBM、XGBoost、CatBoost，
-结合数字位、多尺度分箱、频率和目标编码，保存 OOF 后再选择单模型或融合。
+**English** | [简体中文](README.zh-CN.md)
 
-本地完整训练结果写入
-`experiments.csv`；公开榜成绩只有实际提交后才能确认。项目不会自动向 Kaggle 提交。
+Predict the probability of `Will_Buy_EV = Yes`, evaluated with ROC AUC.
+This project compares LightGBM, XGBoost and CatBoost through a modular
+cross-validation pipeline. Features include digits, multiscale bins, frequency
+encoding and target encoding. Out-of-fold (OOF) predictions support comparisons
+between individual models and blends.
 
-## 安装与数据
+Full local results are recorded in `experiments.csv`. Public leaderboard scores
+require an actual submission. This project does not submit to Kaggle automatically.
 
-建议 Python 3.12，在项目根目录执行：
+## Installation and data
+
+Python 3.12 is recommended. Run commands from the project root:
 
 ```bash
 python -m venv .venv
@@ -17,46 +21,48 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-输入文件：
+Input files:
 
 ```text
-data/train.csv              # id + 13 个原始特征 + Will_Buy_EV
-data/test.csv               # id + 13 个原始特征
-data/sample_submission.csv  # Kaggle 提交格式
+data/train.csv              # id + 13 original features + Will_Buy_EV
+data/test.csv               # id + 13 original features
+data/sample_submission.csv  # Kaggle submission format
 ```
 
-训练集 668,665 行，测试集 286,571 行。目标为 `No` / `Yes`；`id` 仅用于对齐，
-不会进入模型。数据加载器检查 ID 唯一性、目标值和 train/test 特征列一致性。
+The training set contains 668,665 rows; the test set contains 286,571 rows.
+Labels are `No` / `Yes`. The `id` column is used for alignment and excluded from
+model inputs. The loader checks unique IDs, valid labels and matching feature columns.
 
-## 保留的架构
+## Architecture
 
 ```text
 training/
-  lightlgm_cv.py       # 原有拼写和启动命令保留
-  lightgbm_cv.py       # 正确拼写的等价入口
-  lightgbm_reference_cv.py # 单独保留的原版 10 折 LightGBM（175fba1）
+  lightlgm_cv.py           # Historical module spelling remains supported
+  lightgbm_cv.py           # Equivalent entry point with standard spelling
+  lightgbm_reference_cv.py # Preserved original 10-fold script from 175fba1
   xgboost_cv.py
   catboost_cv.py
-  experiment_suite.py # 顺序执行候选，再比较融合
-  ensemble.py         # 对已有 OOF bundles 做融合
+  experiment_suite.py     # Sequential candidates followed by blend selection
+  ensemble.py             # Blend existing OOF bundles
 utils/
-  data_loader.py      # EVDataLoader，仍返回原来的五项数据
+  data_loader.py          # EVDataLoader retains its five-value return contract
   feature_engineering.py
-  cv_runner.py        # 三个模型共用分折、编码、检查点和评估逻辑
-  prediction_saver.py # PredictionSaver，保留版本号与实验日志
-  ensemble.py         # ID 对齐、权重选择、融合诊断
-predictions/          # 提交 CSV、OOF NPZ、配置 JSON
-artifacts/            # 逐折检查点、运行日志和进度（不提交 Git）
+  cv_runner.py            # Shared folds, encoding, checkpoints and evaluation
+  prediction_saver.py     # Versioned predictions and experiment records
+  ensemble.py             # ID alignment, weight selection and diagnostics
+predictions/              # Submission CSVs, OOF NPZs and configuration JSONs
+artifacts/                # Fold checkpoints, logs and progress; excluded from Git
 tests/
 ```
 
-保留独立模型入口、命令行调参、提前停止、OOF AUC、分折成绩与最佳迭代统计、
-预测版本命名、实验记录。重复训练逻辑收敛到 `utils/cv_runner.py`，避免三个入口
-在编码和验证方式上逐渐不一致。
+Separate model entry points, CLI overrides, early stopping, OOF AUC, per-fold
+scores, best-iteration statistics, prediction versions and experiment records
+are retained. Shared training mechanics live in `utils/cv_runner.py` to keep
+encoding and validation consistent across models.
 
-## 直接运行
+## Running experiments
 
-### 原有入口
+### Existing entry points
 
 ```bash
 python -m training.catboost_cv
@@ -64,9 +70,9 @@ python -m training.xgboost_cv
 python -m training.lightlgm_cv
 ```
 
-CatBoost / XGBoost 默认仍使用原始特征与原来的主要参数；加
-`--feature-engineering` 使用保留的业务特征 `legacy`。
-LightGBM 默认使用`notebook` 特征配置、10 折和三重目标编码。
+CatBoost and XGBoost retain their original raw-feature defaults and principal
+parameters. Add `--feature-engineering` to use the `legacy` business features.
+LightGBM defaults to the `notebook` recipe, 10 folds and triple target encoding.
 
 ```bash
 python -m training.catboost_cv --depth 4 --learning-rate 0.05 --iterations 5000
@@ -74,19 +80,23 @@ python -m training.xgboost_cv --feature-engineering
 python -m training.lightgbm_cv --no-target-encoding
 ```
 
-### 保留的原版 LightGBM
+### Preserved original LightGBM
 
 ```bash
 python -m training.lightgbm_reference_cv
 ```
 
-此入口从 `175fba1` 原样保存，保留原版训练脚本、10 折、学习率 0.005、
-最多 100000 轮、500 轮提前停止、数字位/频率特征和三重目标编码。
-仍调用共享的数据/特征/预测工具（对应特征公式未改），不会被 strong preset 替换。
-它与旧版本一样只在全部折完成后保存提交 CSV 和实验记录，没有新版的逐折恢复/OOF bundle。
-正在运行的旧进程不受新文件影响，原有预测文件也保留。
+This entry point preserves the script from `175fba1`: 10 folds, learning rate
+0.005, up to 100000 iterations, early-stopping patience 500, digit/frequency
+features and triple target encoding. It still calls shared data, feature and
+prediction utilities; the corresponding feature formulas are unchanged.
+The `strong` preset does not replace this script.
 
-### 新的候选方案
+Like the earlier version, it saves a submission and experiment record only after
+all folds finish. It does not provide the new fold checkpoints or OOF bundles.
+Previously generated predictions remain available.
+
+### Additional candidates
 
 ```bash
 python -m training.lightgbm_cv --preset strong
@@ -94,81 +104,90 @@ python -m training.xgboost_cv --preset strong
 python -m training.catboost_cv --preset strong
 ```
 
-`strong` 是候选配置，不代表已经证明最优：默认多尺度特征、
-折内频率/三重目标编码、收入邻域编码、5 折。默认 CPU 和 4 个线程。
+`strong` is a candidate configuration, not a claim of optimality. It enables
+multiscale features, fold-local frequency and triple target encoding,
+income-neighborhood encoding, and five folds. CPU and four threads are the defaults.
 
-| 参数 | LightGBM strong | XGBoost strong | CatBoost strong |
+| Parameter | LightGBM strong | XGBoost strong | CatBoost strong |
 |---|---:|---:|---:|
-| 最大轮数 | 3500 | 2400 | 3500 |
-| 学习率 | 0.02 | 0.03 | 0.05 |
-| 深度 | 5 | 6 | 6 |
-| 提前停止 patience | 150 | 150 | 200 |
-| 列采样 | 0.30 | 0.55 | 0.80 |
+| Maximum iterations | 3500 | 2400 | 3500 |
+| Learning rate | 0.02 | 0.03 | 0.05 |
+| Depth | 5 | 6 | 6 |
+| Early-stopping patience | 150 | 150 | 200 |
+| Feature subsampling | 0.30 | 0.55 | 0.80 |
 
-CLI 显式参数覆盖 preset。`--model-seed` 只改变模型随机性；`--random-seed` 改变分折和编码随机性。
+Explicit CLI arguments override presets. `--model-seed` changes model randomness;
+`--random-seed` changes fold and encoding randomness.
 
-### 完整对照与融合
+### Full comparison and blending
 
 ```bash
 python -m training.experiment_suite --n-splits 5 --n-jobs 4
 ```
 
-按顺序运行：
+The suite runs sequentially:
 
-1. 多尺度 LightGBM。
-2. 数字位/频率 LightGBM，学习率改为 0.02、最大 20000 轮、提前停止 300 轮。
-3. 多尺度 XGBoost。
-4. 多尺度 CatBoost。
-5. 用四组 OOF 比较单模型、概率加权、排名加权，生成一个候选提交。
+1. Multiscale LightGBM.
+2. Digit/frequency LightGBM with learning rate 0.02, up to 20000 iterations and early-stopping patience 300.
+3. Multiscale XGBoost.
+4. Multiscale CatBoost.
+5. OOF-based selection among single models, probability blends and rank blends.
 
-四组使用相同的样本、分折和 split seed。Suite 的 `notebook` 候选采用学习率
-0.02，与单独保留的 0.005 配置不同。整个流程可能需要数小时。
+All four use the same rows, folds and split seed. The suite's `notebook` candidate
+uses learning rate 0.02, unlike the preserved 0.005 configuration. A full run can
+take several hours.
 
 ```bash
-# 只运行两个候选
+# Run only two candidates
 python -m training.experiment_suite --candidates multiscale_lgb multiscale_xgb
 
-# 小样本冒烟检查：不能当成完整竞赛成绩
+# Small smoke run; not a full competition evaluation
 python -m training.experiment_suite --sample-size 6000 --n-splits 2 --max-iterations 20
 ```
 
-## 特征方案
+## Feature recipes
 
-| recipe | 内容 | 拟合位置 |
+| Recipe | Features | Where fitted |
 |---|---|---|
-| `legacy` | 原有充电、通勤、收入、类别交互等业务特征 | 逐行计算 |
-| `notebook` | 收入/充电交互、数字位 -4…3、one-hot、频率、常量/完全相关列过滤 | 无标签预处理；频率用 train+test |
-| `multiscale` | 收入数字位/余数、多种宽度的收入与通勤分箱，保留原始类别 | 逐行计算；频率仅拟合外层训练折 |
+| `legacy` | Charging, commute, income and categorical business interactions | Row-wise |
+| `notebook` | Income/charging interactions, digits -4…3, one-hot encoding, frequencies, constant/perfect-correlation filtering | Label-free preprocessing; frequencies use train + test |
+| `multiscale` | Income digits/remainders and multiple income/commute bin widths; original categories retained | Row-wise; frequencies fitted on each outer training fold |
 
-`notebook` 方案保留原始浮点整除的数字位计算方式，不能随意改成四舍五入后再拆位。
-多尺度方案则显式将通勤乘 10 并取整，作为另一个不同的候选。
+The `notebook` recipe preserves floating-point floor division for digit features;
+rounding before extraction changes their values. The multiscale recipe explicitly
+rounds commute distance multiplied by 10, providing a different representation.
 
-**标签相关特征全部在外层训练折内拟合：**
+**All label-dependent features are fitted inside outer training folds:**
 
-- 三重 Target Encoding：smooth = auto / 10 / 100；训练行使用内层 5 折
-  `fit_transform`，验证与测试仅 `transform`。`notebook` 默认编码七个数值列；
-  multiscale 编码原始列和部分分箱键。
-- `--te-scope all`：对非 multiscale 方案额外编码数字位和原始类别，作为可选实验。
-- `--income-neighbors`：8192 / 16384 两个收入分辨率，计算中心、邻域、左右购买率、
-  斜率、曲率和样本数；训练行同样交叉拟合，缺失值回退到训练先验。
+- Triple target encoding uses smoothing `auto`, `10` and `100`. Training rows use
+  five-fold inner cross-fitting through `fit_transform`; validation and test rows
+  only use `transform`. The `notebook` default encodes seven numeric columns;
+  multiscale encoding uses original columns and selected bin keys.
+- `--te-scope all` optionally includes digit and original categorical columns for
+  non-multiscale recipes.
+- `--income-neighbors` uses income resolutions 8192 and 16384 to estimate central,
+  neighboring, left and right purchase rates, slopes, curvature and counts.
+  Training rows are cross-fitted; missing values fall back to the training prior.
 
-`notebook` 的 train+test 频率是使用测试分布的竞赛预处理，不使用目标标签；
-它不是严格的仅训练数据预处理。其常量/相关过滤也沿用外层分折前的方式。
-multiscale 的频率、类别词表和标签统计都从外层训练部分拟合。
+The `notebook` recipe uses the unlabeled test distribution for frequencies. It is
+transductive competition preprocessing, not strictly train-only preprocessing.
+Constant/correlation filtering also precedes outer CV. Multiscale frequencies,
+category vocabularies and label statistics are fitted on outer training rows.
 
 ```bash
-# 同参数逐项消融
+# Controlled feature ablations
 python -m training.lightgbm_cv --preset strong --no-income-neighbors
 python -m training.lightgbm_cv --preset strong --no-target-encoding --no-income-neighbors
 python -m training.lightgbm_cv --feature-recipe legacy --no-target-encoding
 ```
 
-切换模型或特征时应保持分折一致。调参、比较多个方案都会给成绩引入选择偏差，
-不能把微小提升直接解释为稳定泛化提升。
+Keep folds consistent when comparing models or features. Hyperparameter and
+candidate selection introduce selection bias; small gains do not establish
+stable generalization improvements.
 
-## 输出、进度与恢复
+## Outputs, progress and recovery
 
-每完成一个折就保存：
+Each completed fold produces a checkpoint:
 
 ```text
 artifacts/runs/<model>_<signature>/
@@ -176,89 +195,105 @@ artifacts/runs/<model>_<signature>/
   progress.json
   fold_01.npz
   ...
-  result.json           # 全部折完成后才有
+  result.json           # Created only after all folds finish
 ```
 
-签名包含输入文件内容哈希、训练配置、核心代码哈希和依赖版本。相同命令再次运行
-默认读取已完成折；未完成的那一折从头训练。`--no-resume` 可以重新训练。
-修改特征代码或参数会产生新签名，避免错误复用旧检查点。
-检查点保存预测，不保存可部署模型。重跑完成的任务可能生成新的提交版本。
+The signature includes input content hashes, configuration, core source-file
+hashes and dependency versions. Repeating the same command reuses completed folds
+by default; an interrupted fold restarts. Use `--no-resume` to retrain.
+Source changes, including comments, can change the signature, as can parameter or
+dependency changes. Incompatible checkpoints are not reused.
+Checkpoints contain predictions, not deployable models. Repeating a completed run
+may create another submission version.
 
-完整 CV 结束后 `predictions/` 产生同名前缀的三个文件：
+After full CV, three files sharing a prefix are saved in `predictions/`:
 
-- `.csv`：`id,Will_Buy_EV`，可提交 Kaggle。
-- `.npz`：训练 ID、标签、OOF 预测、fold ID、测试 ID、测试预测，供融合使用。
-- `.json`：配置与成绩；`experiments.csv` 追加兼容不同模型字段的记录。
+- `.csv`: `id,Will_Buy_EV`, ready for Kaggle submission.
+- `.npz`: training IDs, labels, OOF predictions, fold IDs, test IDs and predictions.
+- `.json`: configuration and scores. `experiments.csv` also receives a record,
+  accommodating different model fields.
 
-OOF bundle 缺行、重复 ID、标签不一致、折不一致或概率非法都会被拒绝。
-旧版本只保存提交 CSV，不能凭空补出 OOF，需要重新训练才可用于本地验证融合。
-带 `sample-size` 的运行仅为样本实验，不能与全量 OOF 混合。
+Incomplete bundles, duplicate IDs, inconsistent labels/folds and invalid
+probabilities are rejected. Historical submission-only runs cannot recover OOF
+predictions without retraining. Sample runs cannot be blended with full-data OOF.
 
-Suite 另外保存 `artifacts/suite/suite_status.json` 和每个候选的 `.log`。
-所有入口支持 `--train-path`、`--test-path`、`--output-dir`、`--experiment-file`、
-`--run-root`，详细参数用 `--help` 查看。
+The suite also writes `artifacts/suite/suite_status.json` and per-candidate logs.
+Modern model entry points and the suite support `--train-path`, `--test-path`,
+`--output-dir`, `--experiment-file` and `--run-root`. The preserved original entry
+point does not support fold recovery. Use `--help` for each command's options.
 
-## 融合评估的边界
+## Ensemble evaluation limits
 
 ```bash
 python -m training.ensemble predictions/model_a.npz predictions/model_b.npz
 ```
 
-先按 ID 对齐，要求同一训练集、标签和分折；比较单模型、等权平均以及模型两两
-25% / 50% / 75% 权重，分别尝试概率和排名。权重只在固定的一半 OOF 行上选择，
-另一半用于报告，不根据该报告继续调权重。单模型也可能胜出。
+Inputs are aligned by ID and must share training rows, labels and folds.
+Candidates include single models, equal-weight blends and pairwise weights of
+25%, 50% and 75%, using probabilities or ranks. Weights are selected on one fixed
+half of the OOF rows; the other half is reported without further weight tuning.
+A single model may win.
 
-**这仍是 OOF 诊断，不是完全独立的嵌套验证。** 基模型在其他折训练时可能见过
-另一半行的标签；全量 OOF 分数也受融合选择影响。报告明确标注
-`full_oof_auc_after_selection`，不将其宣传为无偏成绩。若要严格评估融合收益，
-还需额外的完全隔离测试集或完整嵌套重训。
+**This is an OOF diagnostic, not independent nested validation.** Base learners
+trained on other folds may have seen labels from the other half. The full OOF
+score is also affected by blend selection, so reports label it
+`full_oof_auc_after_selection`. Strict ensemble evaluation requires a completely
+isolated holdout or fully nested retraining.
 
-排名融合针对 AUC，输出不是校准后的购买概率。不引入只有测试提交文件、没有
-可验证 OOF 的外部预测；不做基于公开榜反复调权重或伪标签。
+Rank blends target AUC and do not produce calibrated purchase probabilities.
+The pipeline does not incorporate test-only external predictions without
+verifiable OOF, perform leaderboard-driven weight tuning, or use pseudo-labels.
 
-## 测试与当前结果
+## Tests and results
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-测试覆盖目标编码交叉拟合、未见值回退、邻域编码、ID/折对齐、参数覆盖和输出
-校验。小规模端到端检查覆盖四个候选、逐折续跑、预测保存及融合。
+Tests cover target-encoding cross-fitting, unseen-value fallback, neighborhood
+encoding, ID/fold alignment, parameter overrides and output validation.
+Small end-to-end checks cover all four candidates, checkpoint recovery, prediction
+saving and blending.
 
-历史完整本地基线（旧实验，参数/分折未必与新实验一致）：
+Historical full-data baselines, whose settings may differ from newer experiments:
 
-| 实验 | OOF AUC |
+| Experiment | OOF AUC |
 |---|---:|
-| CatBoost depth=4，原始特征 | 0.9419543 |
-| CatBoost depth=4，原业务特征 | 0.9417906 |
-| XGBoost，原业务特征 | 0.9416650 |
-| LightGBM，原业务特征 | 0.9417209 |
+| CatBoost depth 4, raw features | 0.9419543 |
+| CatBoost depth 4, business features | 0.9417906 |
+| XGBoost, business features | 0.9416650 |
+| LightGBM, business features | 0.9417209 |
 
-新增完整训练的实际成绩见 `experiments.csv` 和 Suite 的 `result.json`。
+New full-data results are recorded in `experiments.csv` and suite `result.json` files.
 
-## 2026-09-17 本地验证与交接
+## Local validation and handoff — 2026-09-17
 
-本次已完成代码整合并通过 11 项测试、四候选的小规模端到端训练/融合/续跑验证。
-全量训练按用户要求暂停，交由用户继续执行：
+The integrated pipeline passed 11 tests and small four-candidate training,
+blending and recovery checks. Full training was paused at the user's request
+for local continuation:
 
 ```bash
 source .venv/bin/activate
 python -m training.experiment_suite --n-splits 5 --n-jobs 4
 ```
 
-上述命令与已启动的配置一致，会读取现有完整折检查点；未完成折重新训练。
-无需删除 `artifacts/suite/`。代码或依赖发生变化时签名可能改变，旧折不会误用。
+This uses the same training configuration as the started suite. Completed folds
+are reused only when their signatures also match; incomplete folds restart.
+Keep `artifacts/suite/`. Later source or dependency changes can invalidate reuse.
 
-| 已完成的全量实验 | 外层折数 | OOF AUC | 提交版本 |
+| Completed full-data experiment | Outer folds | OOF AUC | Submission |
 |---|---:|---:|---|
-| 单独保留的原版 数字位/频率 LightGBM | 10 | 0.94580 | v017 |
-| 新增多尺度 + 邻域 + 三重 TE LightGBM | 5 | 0.94612535 | v018 |
+| Preserved digit/frequency LightGBM | 10 | 0.94580 | v017 |
+| Multiscale + neighborhood + triple-TE LightGBM | 5 | 0.94612535 | v018 |
 
-两者折数不同，仅作记录，不能据此认定稳定提升。统一 5 折的 `notebook` 对照、
-XGBoost、CatBoost 和最终融合尚未全部完成，不能宣称融合成绩已经提升。
+Fold counts differ, so this comparison alone does not establish a stable gain.
+The matched five-fold `notebook`, XGBoost, CatBoost and final blend have not all
+completed; no full-data ensemble improvement is claimed.
 
-现有两份完整提交都在本地 `predictions/` 中。OOF bundle 若已删除，
-可用相同配置续跑，从保留的完整折检查点重新生成。
-原版脚本永久单独保存在 `training/lightgbm_reference_cv.py`。
+Both completed submissions remain in local `predictions/`. Deleted OOF bundles
+can be regenerated from completed fold checkpoints when configuration, code and
+dependency signatures match. The original script is retained separately in
+`training/lightgbm_reference_cv.py`.
 
-已确认的公开榜成绩：v018 为 **0.94639**（用户于 2026-09-17 提供的 Kaggle 提交结果）。
+Confirmed public leaderboard score: **0.94639** for v018, based on the Kaggle
+submission result supplied by the user on 2026-09-17.
