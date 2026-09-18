@@ -350,3 +350,13 @@ Use `--te-scope bins` with the multiscale recipe to target-encode all seven inco
 ```bash
 python -m training.lightgbm_cv --preset strong --te-scope bins --n-jobs 4
 ```
+
+## OOF review
+
+Review existing OOF bundles against v027 without training or tuning new weights. Reports include per-fold AUC deltas, prediction correlation and incompatible bundles skipped with reasons. These retrospective diagnostics do not establish statistical significance or independent validation.
+
+```bash
+python -m training.review_experiments
+```
+
+`artifacts/reviews/summary.csv`, `artifacts/reviews/folds.csv`, `artifacts/reviews/comparison.json`

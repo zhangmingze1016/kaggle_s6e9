@@ -314,3 +314,13 @@ python -m training.lightgbm_cv --preset strong --n-splits 5 --random-seed 42 --m
 ```bash
 python -m training.lightgbm_cv --preset strong --te-scope bins --n-jobs 4
 ```
+
+## OOF review
+
+以 v027 为基准复盘已有 OOF，不训练、不搜索新权重、不生成提交。报告包含逐折 AUC 差异、预测相关性，以及不兼容文件的跳过原因。重复使用的验证数据仅用于回顾诊断，不能据此宣称统计显著或独立验证提升。
+
+```bash
+python -m training.review_experiments
+```
+
+`artifacts/reviews/summary.csv`, `artifacts/reviews/folds.csv`, `artifacts/reviews/comparison.json`
