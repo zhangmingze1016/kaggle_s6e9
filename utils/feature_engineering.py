@@ -489,3 +489,174 @@ class TripleTargetEncoder:
             for j, col in enumerate(columns):
                 encoded[f'TE_{col}_{name}'] = values[:, j]
         return pd.concat([X.copy(), pd.DataFrame(encoded, index=X.index)], axis=1)
+
+
+class MultiScaleFeatureEngineer:
+    """Row-local multiscale keys inspired by jazivxt's Zoom Zoom experiment.
+
+    Frequency/target/neighborhood estimates are deliberately deferred to folds.
+    No hard-coded target-derived income thresholds or external predictions.
+    """
+
+    @staticmethod
+    def transform(X):
+        out = X.copy()
+        income = X['Annual_Income_USD']
+        km10 = (X['Daily_Commute_km'] * 10).round()
+        extra = {}
+        for position in (0, 1, 2):
+            extra[f'inc_digit{position}'] = np.floor(income / 10 ** position) % 10
+        for modulus in (100, 1000):
+            extra[f'inc_mod{modulus}'] = income % modulus
+        extra['km_decimal'] = km10 % 10
+        extra['km_mod100'] = km10 % 100
+        for width in (50, 100, 250, 500, 1000, 2500, 5000):
+            extra[f'inc_q{width}'] = np.floor(income / width)
+        for width in (5, 10, 25, 50):
+            extra[f'km_q{width}'] = np.floor(km10 / width)
+        return pd.concat([out, pd.DataFrame(extra, index=X.index)], axis=1)
+
+    @staticmethod
+    def keys(X):
+        cols = list(NotebookFeatureEngineer.NUMERIC_COLUMNS) + [
+            'Gender', 'City_Type', 'Current_Car_Type', 'Home_Charging_Possible',
+            'Subsidy_Available', 'Range_Anxiety_Level',
+        ]
+        keys = X[cols].copy()
+        for col in ('inc_q100', 'inc_q1000', 'km_q10'):
+            keys[col] = X[col]
+        return keys.astype('string').fillna('__MISSING__').astype(str)
+
+
+class FoldFeatureEngineer:
+    """Learn all label-dependent features only within an outer training fold."""
+
+    def __init__(self, recipe='notebook', target_encoding=True, te_scope='numeric',
+                 cv=5, random_state=42, income_neighbors=False):
+        self.recipe = recipe
+        self.target_encoding = target_encoding
+        self.te_scope = te_scope
+        self.cv = cv
+        self.random_state = random_state
+        self.income_neighbors = income_neighbors
+
+    def _keys(self, X):
+        if self.recipe == 'multiscale':
+            return MultiScaleFeatureEngineer.keys(X)
+        cols = list(NotebookFeatureEngineer.NUMERIC_COLUMNS)
+        if self.te_scope == 'all':
+            cols += [c for c in X if c not in cols and (
+                '_digit' in c or pd.api.types.is_string_dtype(X[c].dtype)
+                or isinstance(X[c].dtype, pd.CategoricalDtype))]
+        return X[cols].astype('string').fillna('__MISSING__').astype(str)
+
+    def fit_transform(self, X, y):
+        from sklearn.model_selection import StratifiedKFold
+        from sklearn.preprocessing import TargetEncoder
+
+        keys = self._keys(X)
+        self.encoders_ = []
+        self.frequencies_ = {}
+        additions = {}
+        if self.recipe == 'multiscale':
+            for col in keys:
+                mapping = keys[col].value_counts(normalize=True)
+                self.frequencies_[col] = mapping
+                additions[f'freq_{col}'] = keys[col].map(mapping).astype('float32')
+        if self.target_encoding:
+            for smooth, tag in [('auto', 'auto'), (10., '10'), (100., '100')]:
+                encoder = TargetEncoder(
+                    smooth=smooth, target_type='binary',
+                    cv=StratifiedKFold(self.cv, shuffle=True, random_state=self.random_state),
+                )
+                values = encoder.fit_transform(keys, y)
+                self.encoders_.append((tag, encoder))
+                for j, col in enumerate(keys):
+                    additions[f'TE_{col}_{tag}'] = values[:, j].astype('float32')
+        blocks = [X.copy(), pd.DataFrame(additions, index=X.index)]
+        if self.income_neighbors:
+            self.neighbors_ = IncomeNeighborhoodEncoder(self.cv, self.random_state)
+            blocks.append(self.neighbors_.fit_transform(X, y))
+        return pd.concat(blocks, axis=1)
+
+    def transform(self, X):
+        keys = self._keys(X)
+        additions = {}
+        for col, mapping in self.frequencies_.items():
+            additions[f'freq_{col}'] = keys[col].map(mapping).fillna(0).astype('float32')
+        for tag, encoder in self.encoders_:
+            values = encoder.transform(keys)
+            for j, col in enumerate(keys):
+                additions[f'TE_{col}_{tag}'] = values[:, j].astype('float32')
+        blocks = [X.copy(), pd.DataFrame(additions, index=X.index)]
+        if self.income_neighbors:
+            blocks.append(self.neighbors_.transform(X))
+        return pd.concat(blocks, axis=1)
+
+
+class IncomeNeighborhoodEncoder:
+    """Cross-fitted local income purchase-rate estimates at two resolutions.
+
+    Bins are fitted without labels on the outer training fold. Inner-fold target
+    statistics include adjacent bins and shrink toward the inner training prior.
+    """
+
+    def __init__(self, cv=5, random_state=42, resolutions=(8192, 16384), smooth=10.):
+        self.cv, self.random_state = cv, random_state
+        self.resolutions, self.smooth = resolutions, smooth
+
+    def _statistics(self, codes, y, size):
+        prior = float(np.mean(y))
+        valid = codes >= 0
+        counts = np.bincount(codes[valid], minlength=size).astype(float)
+        sums = np.bincount(codes[valid], weights=np.asarray(y)[valid], minlength=size)
+        central = (sums + self.smooth * prior) / (counts + self.smooth)
+        left = (np.r_[0., sums[:-1]] + self.smooth * prior) / (np.r_[0., counts[:-1]] + self.smooth)
+        right = (np.r_[sums[1:], 0.] + self.smooth * prior) / (np.r_[counts[1:], 0.] + self.smooth)
+        kernel = np.exp(-.5 * (np.arange(-1, 2) / .8) ** 2)
+        local = (np.convolve(sums, kernel, 'same') + self.smooth * kernel.sum() * prior) / (
+            np.convolve(counts, kernel, 'same') + self.smooth * kernel.sum())
+        matrix = np.column_stack([central, local, left, right, right-left,
+                                  central-.5*(left+right), np.log1p(counts)])
+        # Last row is the unknown/missing-value prior fallback (codes == -1).
+        return np.vstack([matrix, [prior, prior, prior, prior, 0., 0., 0.]]).astype('float32')
+
+    @staticmethod
+    def _codes(values, edges):
+        codes = np.searchsorted(edges, values)
+        codes[~np.isfinite(values)] = -1
+        return codes
+
+    @staticmethod
+    def _names(resolution):
+        return [f'income_{resolution}_{s}' for s in
+                ('mean', 'neighbor_mean', 'left', 'right', 'slope', 'curvature', 'log_count')]
+
+    def fit_transform(self, X, y):
+        from sklearn.model_selection import StratifiedKFold
+        income = X['Annual_Income_USD'].to_numpy(float)
+        y = np.asarray(y)
+        finite = income[np.isfinite(income)]
+        low, high = (finite.min(), finite.max()) if len(finite) else (0., 1.)
+        if low == high:
+            high = low + 1.
+        self.states_ = []
+        blocks = []
+        for resolution in self.resolutions:
+            edges = np.linspace(low, high, resolution + 1)[1:-1]
+            codes = self._codes(income, edges)
+            values = np.empty((len(X), 7), dtype='float32')
+            split = StratifiedKFold(self.cv, shuffle=True, random_state=self.random_state)
+            for fit, valid in split.split(X, y):
+                values[valid] = self._statistics(codes[fit], y[fit], resolution)[codes[valid]]
+            self.states_.append((resolution, edges, self._statistics(codes, y, resolution)))
+            blocks.append(pd.DataFrame(values, index=X.index, columns=self._names(resolution)))
+        return pd.concat(blocks, axis=1)
+
+    def transform(self, X):
+        income = X['Annual_Income_USD'].to_numpy(float)
+        return pd.concat([
+            pd.DataFrame(stats[self._codes(income, edges)], index=X.index,
+                         columns=self._names(resolution))
+            for resolution, edges, stats in self.states_
+        ], axis=1)

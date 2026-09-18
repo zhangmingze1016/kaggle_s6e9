@@ -1,846 +1,240 @@
-# Kaggle Playground Series S6E9
+# Kaggle S6E9 — Predicting Electric Vehicle Purchases
 
-Machine learning project for the **Kaggle Playground Series - Season 6, Episode 9** classification competition.
+预测 `Will_Buy_EV = Yes` 的概率，评价指标为 ROC AUC。
+本项目在原有模块化架构上整合公开 Notebook 的特征方法，用统一交叉验证比较
+LightGBM、XGBoost、CatBoost，保存 OOF 后再选择单模型或融合。
 
-The objective is to predict the probability that a customer will purchase an electric vehicle (EV).
+**公开作者的成绩不等于本项目的复现成绩。** 本地完整训练结果写入
+`experiments.csv`；公开榜成绩只有实际提交后才能确认。项目不会自动向 Kaggle 提交。
 
-- **Problem:** Binary Classification
-- **Target:** `Will_Buy_EV`
-- **Evaluation Metric:** ROC AUC
-- **Primary Model:** CatBoost
+## 安装与数据
 
-This repository contains the complete machine learning workflow used for the competition, including data loading, model training, cross-validation, hyperparameter experiments, out-of-fold evaluation, experiment tracking, and Kaggle submission generation.
-
----
-
-# Installation
-
-## 1. Clone the repository
-
-```bash
-git clone https://github.com/zhangmingze1016/kaggle_s6e9.git
-cd kaggle_s6e9
-```
-
-## 2. Create a virtual environment
+建议 Python 3.12，在项目根目录执行：
 
 ```bash
 python -m venv .venv
-```
-
-Activate the environment.
-
-### macOS / Linux
-
-```bash
 source .venv/bin/activate
-```
-
-### Windows
-
-```bash
-.venv\Scripts\activate
-```
-
-## 3. Install dependencies
-
-```bash
 pip install -r requirements.txt
 ```
 
-The competition dataset is included in the `data/` directory, so no additional data download is required.
+输入文件：
 
----
-
-# Usage
-
-All commands should be executed from the project root directory.
-
-## Run the CatBoost baseline
-
-```bash
-python -m training.baseline
+```text
+data/train.csv              # id + 13 个原始特征 + Will_Buy_EV
+data/test.csv               # id + 13 个原始特征
+data/sample_submission.csv  # Kaggle 提交格式
 ```
 
-## Run CatBoost 5-fold cross-validation
+训练集 668,665 行，测试集 286,571 行。目标为 `No` / `Yes`；`id` 仅用于对齐，
+不会进入模型。数据加载器检查 ID 唯一性、目标值和 train/test 特征列一致性。
+
+## 保留的架构
+
+```text
+training/
+  lightlgm_cv.py       # 原有拼写和启动命令保留
+  lightgbm_cv.py       # 正确拼写的等价入口
+  lightgbm_reference_cv.py # 单独保留的原版 10 折 LightGBM（175fba1）
+  xgboost_cv.py
+  catboost_cv.py
+  experiment_suite.py # 顺序执行候选，再比较融合
+  ensemble.py         # 对已有 OOF bundles 做融合
+utils/
+  data_loader.py      # EVDataLoader，仍返回原来的五项数据
+  feature_engineering.py
+  cv_runner.py        # 三个模型共用分折、编码、检查点和评估逻辑
+  prediction_saver.py # PredictionSaver，保留版本号与实验日志
+  ensemble.py         # ID 对齐、权重选择、融合诊断
+predictions/          # 提交 CSV、OOF NPZ、配置 JSON
+artifacts/            # 逐折检查点、运行日志和进度（不提交 Git）
+tests/
+SOURCES.md            # 已检查的公开方案、来源和适配差异
+```
+
+保留独立模型入口、命令行调参、提前停止、OOF AUC、分折成绩与最佳迭代统计、
+预测版本命名、实验记录。重复训练逻辑收敛到 `utils/cv_runner.py`，避免三个入口
+在编码和验证方式上逐渐不一致。
+
+## 直接运行
+
+### 原有入口
 
 ```bash
 python -m training.catboost_cv
-```
-
-The training script supports command-line hyperparameter overrides.
-
-For example:
-
-```bash
-python -m training.catboost_cv --depth 5
-```
-
-or:
-
-```bash
-python -m training.catboost_cv \
-    --depth 4 \
-    --learning-rate 0.05 \
-    --iterations 5000
-```
-
-This allows experiments to be performed without modifying the training source code.
-
-Generated predictions are automatically saved to:
-
-```text
-predictions/
-```
-
----
-
-# Input
-
-The input datasets are stored in:
-
-```text
-data/
-├── train.csv
-├── test.csv
-└── sample_submission.csv
-```
-
-## Training Data
-
-`train.csv` contains the following columns:
-
-| Column | Role |
-|---|---|
-| `id` | Observation identifier |
-| `Age` | Feature |
-| `Annual_Income_USD` | Feature |
-| `Daily_Commute_km` | Feature |
-| `Number_of_Cars_Owned` | Feature |
-| `Charging_Stations_Near_Home` | Feature |
-| `Charging_Stations_Near_Work` | Feature |
-| `Environmental_Concern_Level` | Feature |
-| `Gender` | Categorical feature |
-| `City_Type` | Categorical feature |
-| `Current_Car_Type` | Categorical feature |
-| `Home_Charging_Possible` | Categorical feature |
-| `Subsidy_Available` | Categorical feature |
-| `Range_Anxiety_Level` | Categorical feature |
-| `Will_Buy_EV` | Target |
-
-The target variable is:
-
-```text
-Will_Buy_EV
-```
-
-with two classes:
-
-```text
-No
-Yes
-```
-
-The `id` column is preserved for submission generation but excluded from model training.
-
-## Test Data
-
-`test.csv` contains the same model features as the training data but does not contain `Will_Buy_EV`.
-
-The model predicts:
-
-```text
-P(Will_Buy_EV = Yes)
-```
-
-for every observation in the test set.
-
----
-
-# Output
-
-Prediction files are automatically generated in:
-
-```text
-predictions/
-```
-
-Each prediction file is directly compatible with Kaggle submission.
-
-Example:
-
-```csv
-id,Will_Buy_EV
-668665,0.009810
-668666,0.022302
-668667,0.005163
-```
-
-`Will_Buy_EV` contains a probability rather than a `Yes` or `No` class prediction because the competition is evaluated using ROC AUC.
-
----
-
-# Prediction Filename Convention
-
-Prediction filenames contain the most important experiment information so that Kaggle submissions can be identified directly from the filename.
-
-## Format
-
-```text
-prediction_vXXX_cb_dX_lrX_iterX_auc_X.csv
-```
-
-Example:
-
-```text
-prediction_v005_cb_d5_lr0.05_iter3000_auc_0.94190.csv
-```
-
-The components represent:
-
-| Component | Meaning | Example |
-|---|---|---|
-| `v005` | Experiment / prediction version | Version 5 |
-| `cb` | Model type | CatBoost |
-| `d5` | Tree depth | `depth = 5` |
-| `lr0.05` | Learning rate | `learning_rate = 0.05` |
-| `iter3000` | Maximum boosting iterations | `iterations = 3000` |
-| `auc_0.94190` | Local out-of-fold ROC AUC | `OOF AUC = 0.94190` |
-
-Therefore:
-
-```text
-prediction_v005_cb_d5_lr0.05_iter3000_auc_0.94190.csv
-```
-
-represents:
-
-```text
-Version:        v005
-Model:          CatBoost
-Depth:          5
-Learning Rate:  0.05
-Max Iterations: 3000
-OOF ROC AUC:    0.94190
-```
-
-## Important Note About Iterations
-
-`iter3000` represents the **maximum allowed number of boosting iterations**, not necessarily the number of trees actually used.
-
-Each cross-validation fold uses early stopping independently.
-
-For example, the depth-5 experiment produced:
-
-```text
-Fold 1: 2650
-Fold 2: 2247
-Fold 3: 2389
-Fold 4: 2142
-Fold 5: 2528
-
-Mean best iteration: 2391
-```
-
-while the configured maximum was:
-
-```text
-iterations = 3000
-```
-
-Detailed experiment parameters and validation results can also be recorded separately for experiment tracking.
-
----
-
-# Project Structure
-
-```text
-kaggle_s6e9/
-│
-├── data/
-│   ├── train.csv
-│   ├── test.csv
-│   └── sample_submission.csv
-│
-├── predictions/
-│   └── prediction_vXXX_cb_dX_lrX_iterX_auc_X.csv
-│
-├── training/
-│   ├── __init__.py
-│   ├── baseline.py
-│   └── catboost_cv.py
-│
-├── utils/
-│   ├── __init__.py
-│   ├── data_loader.py
-│   └── prediction_saver.py
-│
-├── requirements.txt
-├── .gitignore
-└── README.md
-```
-
-## `data/`
-
-Contains the competition input datasets.
-
-## `training/`
-
-Contains model training and validation scripts.
-
-Current experiments:
-
-- `baseline.py` — initial CatBoost baseline using a single stratified train-validation split
-- `catboost_cv.py` — main CatBoost training pipeline using stratified 5-fold cross-validation
-
-Future model experiments can also be added to this directory.
-
-## `utils/`
-
-Contains reusable components shared across model experiments.
-
-Current utilities:
-
-- `EVDataLoader` — shared data loading and preparation
-- `PredictionSaver` — standardized prediction generation and experiment-aware filenames
-
-## `predictions/`
-
-Contains generated Kaggle submission files.
-
-Prediction filenames contain the experiment version, model, major hyperparameters, and local OOF ROC AUC so submissions can be identified easily on the Kaggle submission page.
-
----
-
-# Methodology
-
-## Data Pipeline
-
-All model experiments use the same data-loading pipeline through:
-
-```text
-utils/data_loader.py
-```
-
-The `EVDataLoader` class is responsible for:
-
-1. Loading the training dataset
-2. Loading the test dataset
-3. Separating features and target
-4. Removing `id` from model features
-5. Extracting test IDs
-6. Detecting categorical features
-7. Verifying that train and test features match
-8. Returning the prepared datasets to the training pipeline
-
-Conceptually:
-
-```text
-                  EVDataLoader
-                 /            \
-                /              \
-         train.csv            test.csv
-             │                    │
-             ▼                    ▼
-           X + y                X_test
-                                  │
-                                  ▼
-                               test_ids
-
-             +
-      categorical columns
-```
-
-Centralizing data loading ensures that different model experiments use the same input pipeline.
-
----
-
-# Prediction Pipeline
-
-Prediction output is handled by:
-
-```text
-utils/prediction_saver.py
-```
-
-The `PredictionSaver` class:
-
-1. Creates the `predictions/` directory if necessary
-2. Determines the next experiment version
-3. Creates a Kaggle-compatible prediction DataFrame
-4. Adds important experiment parameters to the filename
-5. Adds the local OOF ROC AUC to the filename
-6. Saves the prediction as a CSV file
-
-Example:
-
-```text
-prediction_v005_cb_d5_lr0.05_iter3000_auc_0.94190.csv
-```
-
-This allows a Kaggle submission to be associated directly with the model configuration that produced it.
-
----
-
-# Baseline Model
-
-The initial baseline uses `CatBoostClassifier`.
-
-The training data is divided using a stratified 80/20 split:
-
-```text
-Training Dataset
-       │
-       ├───────────────┐
-       ▼               ▼
-   80% Train      20% Validation
-       │               │
-       └── CatBoost ───┘
-              │
-              ▼
-           ROC AUC
-```
-
-The initial baseline configuration was approximately:
-
-```python
-MODEL_PARAMS = {
-    "iterations": 500,
-    "depth": 6,
-    "learning_rate": 0.05,
-    "random_seed": 42,
-}
-```
-
-Initial result:
-
-```text
-Local ROC AUC: 0.94110
-Public LB:     0.94083
-```
-
-This serves as the initial benchmark.
-
----
-
-# Cross-Validation
-
-The main training pipeline uses:
-
-```python
-StratifiedKFold(
-    n_splits=5,
-    shuffle=True,
-    random_state=42
-)
-```
-
-The training data is divided into five folds:
-
-```text
-          F1    F2    F3    F4    F5
-
-Fold 1    VAL   TR    TR    TR    TR
-Fold 2    TR    VAL   TR    TR    TR
-Fold 3    TR    TR    VAL   TR    TR
-Fold 4    TR    TR    TR    VAL   TR
-Fold 5    TR    TR    TR    TR    VAL
-```
-
-Each observation is:
-
-- used for training four times
-- used for validation exactly once
-
-This produces out-of-fold predictions for the entire training dataset.
-
----
-
-# Early Stopping
-
-Each fold is trained independently with early stopping.
-
-A high maximum value for `iterations` can therefore be specified without requiring every model to use all iterations.
-
-Conceptually:
-
-```text
-Maximum iterations
-        │
-        ▼
-    CatBoost
-        │
-        ▼
-Validation AUC monitored
-        │
-        ▼
-No improvement for configured patience
-        │
-        ▼
-Training stops
-```
-
-Different folds may therefore have different best iterations.
-
-For the depth-5 experiment:
-
-```text
-Fold 1: 2650
-Fold 2: 2247
-Fold 3: 2389
-Fold 4: 2142
-Fold 5: 2528
-
-Mean:   2391
-```
-
----
-
-# Out-of-Fold Evaluation
-
-For each fold:
-
-```text
-Training Folds
-      │
-      ▼
-    Model
-      │
-      ▼
-Held-Out Fold
-      │
-      ▼
-Validation Probability
-```
-
-The validation probabilities are stored at their original dataset positions.
-
-After all five folds:
-
-```text
-Fold 1 predictions ──┐
-Fold 2 predictions ──┤
-Fold 3 predictions ──┼──► Complete OOF Predictions
-Fold 4 predictions ──┤
-Fold 5 predictions ──┘
-                              │
-                              ▼
-                           ROC AUC
-```
-
-The resulting OOF ROC AUC is the primary local metric used to compare experiments.
-
----
-
-# Test Prediction
-
-Each fold model also predicts the competition test set.
-
-```text
-Fold 1 Model ──► Test probabilities ──┐
-Fold 2 Model ──► Test probabilities ──┤
-Fold 3 Model ──► Test probabilities ──┼──► Average
-Fold 4 Model ──► Test probabilities ──┤       │
-Fold 5 Model ──► Test probabilities ──┘       ▼
-                                           Submission
-```
-
-The final test probability is the average of the five fold predictions.
-
-This reduces dependence on any single train-validation split.
-
----
-
-# Hyperparameter Experiments
-
-The CatBoost training pipeline supports controlled hyperparameter experiments.
-
-Important parameters currently being investigated include:
-
-```text
-depth
-learning_rate
-iterations
-```
-
-Only selected parameters are changed between experiments while the cross-validation folds and random seed remain fixed.
-
-For example:
-
-```bash
-python -m training.catboost_cv --depth 5
-```
-
-can be compared against:
-
-```bash
-python -m training.catboost_cv --depth 6
-```
-
-using exactly the same folds.
-
-The current depth experiments show that reducing depth from 6 to 5 slightly improved OOF ROC AUC.
-
-The depth-5 fold results were:
-
-```text
-Fold 1: 0.94074
-Fold 2: 0.94156
-Fold 3: 0.94287
-Fold 4: 0.94252
-Fold 5: 0.94185
-
-Mean Fold AUC: 0.94191
-Std Fold AUC:  0.00075
-OOF ROC AUC:   0.94190
-```
-
-All five folds improved slightly relative to the depth-6 experiment.
-
-Hyperparameter experiments are evaluated primarily using OOF performance rather than repeatedly optimizing against the Kaggle public leaderboard.
-
----
-
-# Evaluation Metric
-
-The competition uses **ROC AUC**.
-
-ROC AUC evaluates how effectively the model ranks positive observations above negative observations across classification thresholds.
-
-Because of this, the model submits probabilities instead of hard class predictions.
-
-For example:
-
-```text
-0.95
-0.72
-0.31
-0.04
-```
-
-rather than:
-
-```text
-Yes
-Yes
-No
-No
-```
-
-The positive class is:
-
-```text
-Will_Buy_EV = Yes
-```
-
-Therefore model predictions represent:
-
-```text
-P(Will_Buy_EV = Yes)
-```
-
----
-
-# Experiment Workflow
-
-```text
-Data
- │
- ▼
-EVDataLoader
- │
- ▼
-Baseline
- │
- ▼
-5-Fold Cross-Validation
- │
- ▼
-OOF Evaluation
- │
- ▼
-Hyperparameter Experiments
- │
- ├──────────────┬──────────────┐
- ▼              ▼              ▼
-CatBoost     LightGBM       XGBoost
- │              │              │
- └──────────────┼──────────────┘
-                ▼
-        Feature Engineering
-                │
-                ▼
-             Ensemble
-                │
-                ▼
-        Kaggle Submission
-```
-
-Major model changes are evaluated locally using the same cross-validation framework before Kaggle leaderboard performance is considered.
-
----
-
-# Results
-
-| Experiment | Validation Strategy | Local ROC AUC | Public LB |
-|---|---|---:|---:|
-| CatBoost Baseline | Stratified 80/20 | 0.94110 | 0.94083 |
-| CatBoost CV — depth 6 | 5-Fold Stratified CV | 0.94179 | 0.94164 |
-| CatBoost CV — depth 5 | 5-Fold Stratified CV | **0.94190** | Pending |
-| CatBoost CV — depth 4 | 5-Fold Stratified CV | In Progress | - |
-| LightGBM CV | 5-Fold Stratified CV | Planned | - |
-| XGBoost CV | 5-Fold Stratified CV | Planned | - |
-| Ensemble | OOF-based | Planned | - |
-
-The current best completed local CatBoost experiment uses:
-
-```text
-depth = 5
-learning_rate = 0.05
-max_iterations = 3000
-```
-
-with:
-
-```text
-OOF ROC AUC = 0.94190
-```
-
----
-
-# Reproducibility
-
-Random seeds are fixed where applicable:
-
-```python
-RANDOM_SEED = 42
-```
-
-Cross-validation uses the same shuffled stratified folds so model experiments can be compared under consistent validation conditions.
-
-Command-line hyperparameters and structured prediction filenames make individual experiments easier to reproduce and identify.
-
----
-
-# Roadmap
-
-- [x] Set up project environment
-- [x] Load and inspect competition data
-- [x] Build initial CatBoost baseline
-- [x] Use probability predictions for ROC AUC
-- [x] Generate Kaggle-compatible submissions
-- [x] Submit baseline to Kaggle
-- [x] Create reusable `EVDataLoader`
-- [x] Create reusable `PredictionSaver`
-- [x] Refactor project into packages
-- [x] Implement CatBoost 5-fold cross-validation
-- [x] Implement early stopping
-- [x] Add command-line hyperparameter configuration
-- [x] Add experiment-aware prediction filenames
-- [x] Begin systematic CatBoost hyperparameter experiments
-- [ ] Complete CatBoost hyperparameter search
-- [ ] Train LightGBM
-- [ ] Train XGBoost
-- [ ] Perform feature engineering
-- [ ] Compare OOF predictions
-- [ ] Build model ensembles
-- [ ] Select final submissions
-
-# Feature Engineering and Notebook LightGBM
-
-The existing `utils/` → `EVDataLoader` → `training/` → `PredictionSaver`
-architecture is retained. The original `FeatureEngineer.transform()` is kept
-as the `legacy` recipe, including charging, financial and categorical
-interactions. CatBoost and XGBoost keep their existing CLI behavior:
-
-```bash
-python -m training.catboost_cv --feature-engineering
-python -m training.xgboost_cv --feature-engineering
-```
-
-## Notebook recipe
-
-Adapted from [Rugved Bane's notebook, version 349757944](https://www.kaggle.com/code/rugvedbane/0-94590-lb-stacking-failed-this-didn-t?scriptVersionId=349757944).
-The existing filename `training/lightlgm_cv.py` is retained for compatibility.
-
-```bash
+python -m training.xgboost_cv
 python -m training.lightlgm_cv
 ```
 
-This defaults to:
-
-- FE-B: binary/ordinal mappings, six financial/charging features, and one-hot
-  encoding of Gender, City_Type and Current_Car_Type with the first level dropped.
-- Eight digit positions (-4 through 3) for each of seven numeric inputs. The
-  original floating-point floor division is preserved, including its rounding artifacts.
-- Normalized frequency of every base/digit feature using train + test together.
-- Constant and exactly perfectly correlated feature removal based on train.
-- Three target encodings (smooth auto, 10, 100) of the seven numeric inputs.
-  Each outer training fold uses five-fold inner cross-fitting; validation and
-  test only use encoders fitted on that outer training fold.
-- Ten stratified outer folds, seed 42; LightGBM learning rate 0.005, up to
-  100000 trees, depth 7, 31 leaves, min_child_samples 50, max_bin 255,
-  reg_alpha 0.1, reg_lambda 2.0, is_unbalance enabled, and AUC-only early
-  stopping with patience 500. Test predictions are averaged across folds.
-
-Frequency encoding intentionally uses the unlabeled test distribution, as in
-the reference (transductive competition preprocessing). It uses no test or
-validation labels, but is not a strict train-only preprocessing estimate for
-future production data. Feature filtering also precedes outer CV as in the
-reference. Target encodings are strictly fitted within folds.
-
-Local adaptations: CPU is the default instead of GPU; one-hot category levels
-are shared between train/test to avoid inconsistent dropped baselines; the seven
-raw numeric columns are retained even on tiny/degenerate inputs for target
-encoding. On a 6000-train/2000-test sample, feature matrices and cross-fitted
-TE values were verified against the specified notebook's executable functions.
-
-The notebook sets subsample=0.8 but leaves subsample_freq=0, which disables row
-bagging. This behavior is preserved; use `--subsample-freq 1` for an intentional
-experiment. GPU is available via `--device gpu` if supported by your installation.
-
-## Comparisons and overrides
+CatBoost / XGBoost 默认仍使用原始特征与原来的主要参数；加
+`--feature-engineering` 使用保留的业务特征 `legacy`。
+LightGBM 默认使用之前整合的 `notebook` 方案、10 折和三重目标编码。
 
 ```bash
-# Notebook features without target encoding
-python -m training.lightlgm_cv --no-target-encoding
-
-# Original feature recipe, without target encoding
-python -m training.lightlgm_cv --feature-recipe legacy --no-target-encoding
-
-# Raw features, without target encoding
-python -m training.lightlgm_cv --no-feature-engineering --no-target-encoding
-
-# Shorter exploratory run (not a reproduction of the notebook score)
-python -m training.lightlgm_cv --n-splits 5 --n-estimators 3000 --n-jobs 4
+python -m training.catboost_cv --depth 4 --learning-rate 0.05 --iterations 5000
+python -m training.xgboost_cv --feature-engineering
+python -m training.lightgbm_cv --no-target-encoding
 ```
 
-All existing LightGBM hyperparameter flags remain available. Input/output paths
-can be overridden with `--train-path`, `--test-path`, `--output-dir` and
-`--experiment-file`. Prediction filenames identify the notebook and triple-TE
-recipe; experiment records include the recipe, folds, device and encoding settings.
-Historical experiment scores above are unchanged; the notebook's reported
-0.94590 public LB is **not** a locally reproduced score.
+### 保留的原版 LightGBM
 
-Programmatic loading (the existing five-value return contract is unchanged):
-
-```python
-from utils.data_loader import EVDataLoader
-
-X, y, X_test, test_ids, cat_cols = EVDataLoader(
-    feature_engineering=True, feature_recipe="notebook",
-).load()
-# TripleTargetEncoder is applied inside the training loop, never here.
+```bash
+python -m training.lightgbm_reference_cv
 ```
 
-Validation:
+此入口从 `175fba1` 原样保存，保留原版训练脚本、10 折、学习率 0.005、
+最多 100000 轮、500 轮提前停止、Notebook 特征和三重目标编码。
+仍调用共享的数据/特征/预测工具（对应 Notebook 公式未改），不会被 strong preset 替换。
+它与旧版本一样只在全部折完成后保存提交 CSV 和实验记录，没有新版的逐折恢复/OOF bundle。
+正在运行的旧进程不受新文件影响，原有预测文件也保留。
+
+### 新的候选方案
+
+```bash
+python -m training.lightgbm_cv --preset strong
+python -m training.xgboost_cv --preset strong
+python -m training.catboost_cv --preset strong
+```
+
+`strong` 是待验证的公开方法组合，不是已经证明最优的配置：默认多尺度特征、
+折内频率/三重目标编码、收入邻域编码、5 折。默认 CPU 和 4 个线程。
+
+| 参数 | LightGBM strong | XGBoost strong | CatBoost strong |
+|---|---:|---:|---:|
+| 最大轮数 | 3500 | 2400 | 3500 |
+| 学习率 | 0.02 | 0.03 | 0.05 |
+| 深度 | 5 | 6 | 6 |
+| 提前停止 patience | 150 | 150 | 200 |
+| 列采样 | 0.30 | 0.55 | 0.80 |
+
+参数来自公开方案的起点并经过本地适配，详见 `SOURCES.md`。CLI 显式参数覆盖
+preset。`--model-seed` 只改变模型随机性；`--random-seed` 改变分折和编码随机性。
+
+### 完整对照与融合
+
+```bash
+python -m training.experiment_suite --n-splits 5 --n-jobs 4
+```
+
+按顺序运行：
+
+1. 多尺度 LightGBM。
+2. Notebook LightGBM，学习率改为 0.02、最大 20000 轮、提前停止 300 轮。
+3. 多尺度 XGBoost。
+4. 多尺度 CatBoost。
+5. 用四组 OOF 比较单模型、概率加权、排名加权，生成一个候选提交。
+
+四组使用相同的样本、分折和 split seed。Suite 的 Notebook 候选为了计算效率
+调整了学习率，因此不属于原 Notebook 的逐参数复现。整个流程可能需要数小时。
+
+```bash
+# 只运行两个候选
+python -m training.experiment_suite --candidates multiscale_lgb multiscale_xgb
+
+# 小样本冒烟检查：不能当成完整竞赛成绩
+python -m training.experiment_suite --sample-size 6000 --n-splits 2 --max-iterations 20
+```
+
+## 特征方案
+
+| recipe | 内容 | 拟合位置 |
+|---|---|---|
+| `legacy` | 原有充电、通勤、收入、类别交互等业务特征 | 逐行计算 |
+| `notebook` | FE-B、数字位 -4…3、one-hot、频率、常量/完全相关列过滤 | 无标签预处理；频率用 train+test |
+| `multiscale` | 收入数字位/余数、多种宽度的收入与通勤分箱，保留原始类别 | 逐行计算；频率仅拟合外层训练折 |
+
+Notebook 方案保留原始浮点整除的数字位计算方式，不能随意改成四舍五入后再拆位。
+多尺度方案则显式将通勤乘 10 并取整，作为另一个不同的候选。
+
+**标签相关特征全部在外层训练折内拟合：**
+
+- 三重 Target Encoding：smooth = auto / 10 / 100；训练行使用内层 5 折
+  `fit_transform`，验证与测试仅 `transform`。Notebook 默认编码七个数值列；
+  multiscale 编码原始列和部分分箱键。
+- `--te-scope all`：对非 multiscale 方案额外编码数字位和原始类别，作为可选实验。
+- `--income-neighbors`：8192 / 16384 两个收入分辨率，计算中心、邻域、左右购买率、
+  斜率、曲率和样本数；训练行同样交叉拟合，缺失值回退到训练先验。
+
+Notebook 的 train+test 频率是使用测试分布的竞赛预处理，不使用目标标签；
+它不是严格的仅训练数据预处理。其常量/相关过滤也沿用外层分折前的方式。
+multiscale 的频率、类别词表和标签统计都从外层训练部分拟合。
+
+```bash
+# 同参数逐项消融
+python -m training.lightgbm_cv --preset strong --no-income-neighbors
+python -m training.lightgbm_cv --preset strong --no-target-encoding --no-income-neighbors
+python -m training.lightgbm_cv --feature-recipe legacy --no-target-encoding
+```
+
+切换模型或特征时应保持分折一致。调参、比较多个方案都会给成绩引入选择偏差，
+不能把微小提升直接解释为稳定泛化提升。
+
+## 输出、进度与恢复
+
+每完成一个折就保存：
+
+```text
+artifacts/runs/<model>_<signature>/
+  config.json
+  progress.json
+  fold_01.npz
+  ...
+  result.json           # 全部折完成后才有
+```
+
+签名包含输入文件内容哈希、训练配置、核心代码哈希和依赖版本。相同命令再次运行
+默认读取已完成折；未完成的那一折从头训练。`--no-resume` 可以重新训练。
+修改特征代码或参数会产生新签名，避免错误复用旧检查点。
+检查点保存预测，不保存可部署模型。重跑完成的任务可能生成新的提交版本。
+
+完整 CV 结束后 `predictions/` 产生同名前缀的三个文件：
+
+- `.csv`：`id,Will_Buy_EV`，可提交 Kaggle。
+- `.npz`：训练 ID、标签、OOF 预测、fold ID、测试 ID、测试预测，供融合使用。
+- `.json`：配置与成绩；`experiments.csv` 追加兼容不同模型字段的记录。
+
+OOF bundle 缺行、重复 ID、标签不一致、折不一致或概率非法都会被拒绝。
+旧版本只保存提交 CSV，不能凭空补出 OOF，需要重新训练才可用于本地验证融合。
+带 `sample-size` 的运行仅为样本实验，不能与全量 OOF 混合。
+
+Suite 另外保存 `artifacts/suite/suite_status.json` 和每个候选的 `.log`。
+所有入口支持 `--train-path`、`--test-path`、`--output-dir`、`--experiment-file`、
+`--run-root`，详细参数用 `--help` 查看。
+
+## 融合评估的边界
+
+```bash
+python -m training.ensemble predictions/model_a.npz predictions/model_b.npz
+```
+
+先按 ID 对齐，要求同一训练集、标签和分折；比较单模型、等权平均以及模型两两
+25% / 50% / 75% 权重，分别尝试概率和排名。权重只在固定的一半 OOF 行上选择，
+另一半用于报告，不根据该报告继续调权重。单模型也可能胜出。
+
+**这仍是 OOF 诊断，不是完全独立的嵌套验证。** 基模型在其他折训练时可能见过
+另一半行的标签；全量 OOF 分数也受融合选择影响。报告明确标注
+`full_oof_auc_after_selection`，不将其宣传为无偏成绩。若要严格评估融合收益，
+还需额外的完全隔离测试集或完整嵌套重训。
+
+排名融合针对 AUC，输出不是校准后的购买概率。不引入只有测试提交文件、没有
+可验证 OOF 的外部预测；不做基于公开榜反复调权重或伪标签。
+
+## 测试与当前结果
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-Tests cover feature formulas/schema, unchanged inputs, unseen-value fallback,
-and cross-fitting that prevents a training row from encoding its own label.
-A short two-fold LightGBM run also verified loading, encoding, training,
-prediction averaging, submission output and experiment logging. Full ten-fold
-training is required before comparing OOF performance to the reference.
+测试覆盖目标编码交叉拟合、未见值回退、邻域编码、ID/折对齐、参数覆盖和输出
+校验。小规模端到端检查覆盖四个候选、逐折续跑、预测保存及融合。
+
+历史完整本地基线（旧实验，参数/分折未必与新实验一致）：
+
+| 实验 | OOF AUC |
+|---|---:|
+| CatBoost depth=4，原始特征 | 0.9419543 |
+| CatBoost depth=4，原业务特征 | 0.9417906 |
+| XGBoost，原业务特征 | 0.9416650 |
+| LightGBM，原业务特征 | 0.9417209 |
+
+新增完整训练的实际成绩见 `experiments.csv` 和 Suite 的 `result.json`。
+公开高分方法的来源和不能复现的部分见 [SOURCES.md](SOURCES.md)。

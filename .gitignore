@@ -4,3 +4,7 @@ __pycache__/
 catboost_info
 predictions/*.csv
 experiments.csv
+artifacts/
+predictions/*.npz
+predictions/*.json
+.prediction_saver.lock
