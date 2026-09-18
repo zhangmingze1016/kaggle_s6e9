@@ -540,7 +540,14 @@ class FoldFeatureEngineer:
 
     def _keys(self, X):
         if self.recipe == 'multiscale':
-            return MultiScaleFeatureEngineer.keys(X)
+            keys = MultiScaleFeatureEngineer.keys(X)
+            if self.te_scope == 'bins':
+                for col in X:
+                    if col.startswith(('inc_q', 'km_q')) and col not in keys:
+                        keys[col] = X[col].astype('string').fillna('__MISSING__').astype(str)
+            return keys
+        if self.te_scope == 'bins':
+            raise ValueError('te_scope=bins requires the multiscale recipe')
         cols = list(NotebookFeatureEngineer.NUMERIC_COLUMNS)
         if self.te_scope == 'all':
             cols += [c for c in X if c not in cols and (
@@ -557,7 +564,8 @@ class FoldFeatureEngineer:
         self.frequencies_ = {}
         additions = {}
         if self.recipe == 'multiscale':
-            for col in keys:
+            # Keep frequency features unchanged for the expanded-TE comparison.
+            for col in MultiScaleFeatureEngineer.keys(X):
                 mapping = keys[col].value_counts(normalize=True)
                 self.frequencies_[col] = mapping
                 additions[f'freq_{col}'] = keys[col].map(mapping).astype('float32')

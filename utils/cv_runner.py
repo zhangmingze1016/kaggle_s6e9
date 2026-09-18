@@ -59,7 +59,7 @@ def parse_args(model, argv=None):
             parser.add_argument('--'+key.replace('_','-'), action=argparse.BooleanOptionalAction, default=value)
         else:
             parser.add_argument('--'+key.replace('_','-'), type=type(value), default=value)
-    parser.add_argument('--te-scope', choices=['numeric', 'all'], default='numeric')
+    parser.add_argument('--te-scope', choices=['numeric', 'all', 'bins'], default='numeric')
     parser.add_argument('--income-neighbors', action=argparse.BooleanOptionalAction, default=preliminary.preset=='strong')
     parser.add_argument('--te-cv', type=int, default=5)
     parser.add_argument('--random-seed', type=int, default=42)

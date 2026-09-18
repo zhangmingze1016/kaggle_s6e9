@@ -44,6 +44,29 @@ class PipelineTest(unittest.TestCase):
         encoder.transform(held)
         assert_frame_equal(before,encoder.transform(X))
 
+    def test_expanded_bin_te_preserves_baseline_features(self):
+        raw=pd.read_csv('data/train.csv',nrows=100).drop(columns=['id','Will_Buy_EV'])
+        X=MultiScaleFeatureEngineer.transform(raw)
+        y=np.tile([0,1],50)
+        base=FoldFeatureEngineer(recipe='multiscale')
+        expanded=FoldFeatureEngineer(recipe='multiscale',te_scope='bins')
+        a=base.fit_transform(X,y)
+        b=expanded.fit_transform(X,y)
+        assert_frame_equal(a,b[a.columns])
+        extra=set(b)-set(a)
+        self.assertEqual(len(extra),24)
+        self.assertTrue(all(c.startswith('TE_') for c in extra))
+        held=X.iloc[:8].copy()
+        held['inc_q50']=1e12
+        transformed=expanded.transform(held)
+        self.assertTrue(b.columns.equals(transformed.columns))
+        self.assertTrue(np.isfinite(transformed[list(extra)]).all().all())
+        # Unique income bins: inner validation rows cannot use their own labels.
+        unique=X.copy()
+        unique['inc_q50']=np.arange(len(X))
+        crossfit=FoldFeatureEngineer(recipe='multiscale',te_scope='bins').fit_transform(unique,y)
+        np.testing.assert_allclose(crossfit['TE_inc_q50_auto'],.5)
+
     def test_category_unknown_and_alignment(self):
         train=pd.DataFrame({'cat':['b','a']})
         valid=pd.DataFrame({'cat':['z']})

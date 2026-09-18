@@ -306,3 +306,11 @@ python -m training.lightgbm_cv --preset strong --n-splits 5 --random-seed 42 --m
 ```
 
 第一条命令不训练，只比较基准与加入少量 v22 的融合。后两条会完整训练：保持折划分和特征一致，仅更改模型种子。提交前查看融合报告的 `audit_gain_over_baseline`；它只是 OOF 诊断，并非独立的嵌套验证，不保证涨分。种子实验生成新版本后，用对应 NPZ 的完整路径传给 `training.ensemble`，与基准比较。
+
+## 扩大分箱目标编码范围
+
+多尺度方案新增 `--te-scope bins`：对全部 7 个收入分箱和 4 个通勤分箱做三重目标编码，增加 24 列 TE。频率特征、内层交叉拟合、模型参数和外层划分不变。默认 `numeric` 保留原基线。这是待验证的实验，不代表已提升成绩。
+
+```bash
+python -m training.lightgbm_cv --preset strong --te-scope bins --n-jobs 4
+```

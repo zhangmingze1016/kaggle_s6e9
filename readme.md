@@ -342,3 +342,11 @@ python -m training.lightgbm_cv --preset strong --n-splits 5 --random-seed 42 --m
 ```
 
 Inspect `audit_gain_over_baseline` in the blend report before submitting. This is an OOF diagnostic, not independent nested validation; gains are not guaranteed. New seed runs produce new versioned bundles; use their exact paths with `training.ensemble` to compare them with the baseline.
+
+## Expanded bin target encoding
+
+Use `--te-scope bins` with the multiscale recipe to target-encode all seven income bins and four commute bins (24 extra TE columns). Frequency features, inner cross-fitting, model parameters and outer folds stay unchanged. The default `numeric` scope preserves the baseline. This is an experiment, not a confirmed improvement.
+
+```bash
+python -m training.lightgbm_cv --preset strong --te-scope bins --n-jobs 4
+```
