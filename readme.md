@@ -1,10 +1,10 @@
 # Kaggle S6E9 — Predicting Electric Vehicle Purchases
 
 预测 `Will_Buy_EV = Yes` 的概率，评价指标为 ROC AUC。
-本项目在原有模块化架构上整合公开 Notebook 的特征方法，用统一交叉验证比较
-LightGBM、XGBoost、CatBoost，保存 OOF 后再选择单模型或融合。
+本项目采用模块化训练流程，用统一交叉验证比较 LightGBM、XGBoost、CatBoost，
+结合数字位、多尺度分箱、频率和目标编码，保存 OOF 后再选择单模型或融合。
 
-**公开作者的成绩不等于本项目的复现成绩。** 本地完整训练结果写入
+本地完整训练结果写入
 `experiments.csv`；公开榜成绩只有实际提交后才能确认。项目不会自动向 Kaggle 提交。
 
 ## 安装与数据
@@ -48,7 +48,6 @@ utils/
 predictions/          # 提交 CSV、OOF NPZ、配置 JSON
 artifacts/            # 逐折检查点、运行日志和进度（不提交 Git）
 tests/
-SOURCES.md            # 已检查的公开方案、来源和适配差异
 ```
 
 保留独立模型入口、命令行调参、提前停止、OOF AUC、分折成绩与最佳迭代统计、
@@ -67,7 +66,7 @@ python -m training.lightlgm_cv
 
 CatBoost / XGBoost 默认仍使用原始特征与原来的主要参数；加
 `--feature-engineering` 使用保留的业务特征 `legacy`。
-LightGBM 默认使用之前整合的 `notebook` 方案、10 折和三重目标编码。
+LightGBM 默认使用`notebook` 特征配置、10 折和三重目标编码。
 
 ```bash
 python -m training.catboost_cv --depth 4 --learning-rate 0.05 --iterations 5000
@@ -82,8 +81,8 @@ python -m training.lightgbm_reference_cv
 ```
 
 此入口从 `175fba1` 原样保存，保留原版训练脚本、10 折、学习率 0.005、
-最多 100000 轮、500 轮提前停止、Notebook 特征和三重目标编码。
-仍调用共享的数据/特征/预测工具（对应 Notebook 公式未改），不会被 strong preset 替换。
+最多 100000 轮、500 轮提前停止、数字位/频率特征和三重目标编码。
+仍调用共享的数据/特征/预测工具（对应特征公式未改），不会被 strong preset 替换。
 它与旧版本一样只在全部折完成后保存提交 CSV 和实验记录，没有新版的逐折恢复/OOF bundle。
 正在运行的旧进程不受新文件影响，原有预测文件也保留。
 
@@ -95,7 +94,7 @@ python -m training.xgboost_cv --preset strong
 python -m training.catboost_cv --preset strong
 ```
 
-`strong` 是待验证的公开方法组合，不是已经证明最优的配置：默认多尺度特征、
+`strong` 是候选配置，不代表已经证明最优：默认多尺度特征、
 折内频率/三重目标编码、收入邻域编码、5 折。默认 CPU 和 4 个线程。
 
 | 参数 | LightGBM strong | XGBoost strong | CatBoost strong |
@@ -106,8 +105,7 @@ python -m training.catboost_cv --preset strong
 | 提前停止 patience | 150 | 150 | 200 |
 | 列采样 | 0.30 | 0.55 | 0.80 |
 
-参数来自公开方案的起点并经过本地适配，详见 `SOURCES.md`。CLI 显式参数覆盖
-preset。`--model-seed` 只改变模型随机性；`--random-seed` 改变分折和编码随机性。
+CLI 显式参数覆盖 preset。`--model-seed` 只改变模型随机性；`--random-seed` 改变分折和编码随机性。
 
 ### 完整对照与融合
 
@@ -118,13 +116,13 @@ python -m training.experiment_suite --n-splits 5 --n-jobs 4
 按顺序运行：
 
 1. 多尺度 LightGBM。
-2. Notebook LightGBM，学习率改为 0.02、最大 20000 轮、提前停止 300 轮。
+2. 数字位/频率 LightGBM，学习率改为 0.02、最大 20000 轮、提前停止 300 轮。
 3. 多尺度 XGBoost。
 4. 多尺度 CatBoost。
 5. 用四组 OOF 比较单模型、概率加权、排名加权，生成一个候选提交。
 
-四组使用相同的样本、分折和 split seed。Suite 的 Notebook 候选为了计算效率
-调整了学习率，因此不属于原 Notebook 的逐参数复现。整个流程可能需要数小时。
+四组使用相同的样本、分折和 split seed。Suite 的 `notebook` 候选采用学习率
+0.02，与单独保留的 0.005 配置不同。整个流程可能需要数小时。
 
 ```bash
 # 只运行两个候选
@@ -139,22 +137,22 @@ python -m training.experiment_suite --sample-size 6000 --n-splits 2 --max-iterat
 | recipe | 内容 | 拟合位置 |
 |---|---|---|
 | `legacy` | 原有充电、通勤、收入、类别交互等业务特征 | 逐行计算 |
-| `notebook` | FE-B、数字位 -4…3、one-hot、频率、常量/完全相关列过滤 | 无标签预处理；频率用 train+test |
+| `notebook` | 收入/充电交互、数字位 -4…3、one-hot、频率、常量/完全相关列过滤 | 无标签预处理；频率用 train+test |
 | `multiscale` | 收入数字位/余数、多种宽度的收入与通勤分箱，保留原始类别 | 逐行计算；频率仅拟合外层训练折 |
 
-Notebook 方案保留原始浮点整除的数字位计算方式，不能随意改成四舍五入后再拆位。
+`notebook` 方案保留原始浮点整除的数字位计算方式，不能随意改成四舍五入后再拆位。
 多尺度方案则显式将通勤乘 10 并取整，作为另一个不同的候选。
 
 **标签相关特征全部在外层训练折内拟合：**
 
 - 三重 Target Encoding：smooth = auto / 10 / 100；训练行使用内层 5 折
-  `fit_transform`，验证与测试仅 `transform`。Notebook 默认编码七个数值列；
+  `fit_transform`，验证与测试仅 `transform`。`notebook` 默认编码七个数值列；
   multiscale 编码原始列和部分分箱键。
 - `--te-scope all`：对非 multiscale 方案额外编码数字位和原始类别，作为可选实验。
 - `--income-neighbors`：8192 / 16384 两个收入分辨率，计算中心、邻域、左右购买率、
   斜率、曲率和样本数；训练行同样交叉拟合，缺失值回退到训练先验。
 
-Notebook 的 train+test 频率是使用测试分布的竞赛预处理，不使用目标标签；
+`notebook` 的 train+test 频率是使用测试分布的竞赛预处理，不使用目标标签；
 它不是严格的仅训练数据预处理。其常量/相关过滤也沿用外层分折前的方式。
 multiscale 的频率、类别词表和标签统计都从外层训练部分拟合。
 
@@ -237,7 +235,6 @@ python -m unittest discover -s tests -v
 | LightGBM，原业务特征 | 0.9417209 |
 
 新增完整训练的实际成绩见 `experiments.csv` 和 Suite 的 `result.json`。
-公开高分方法的来源和不能复现的部分见 [SOURCES.md](SOURCES.md)。
 
 ## 2026-09-17 本地验证与交接
 
@@ -254,11 +251,12 @@ python -m training.experiment_suite --n-splits 5 --n-jobs 4
 
 | 已完成的全量实验 | 外层折数 | OOF AUC | 提交版本 |
 |---|---:|---:|---|
-| 单独保留的原版 Notebook LightGBM | 10 | 0.94580 | v017 |
+| 单独保留的原版 数字位/频率 LightGBM | 10 | 0.94580 | v017 |
 | 新增多尺度 + 邻域 + 三重 TE LightGBM | 5 | 0.94612535 | v018 |
 
-两者折数不同，仅作记录，不能据此认定稳定提升。统一 5 折的 Notebook 对照、
+两者折数不同，仅作记录，不能据此认定稳定提升。统一 5 折的 `notebook` 对照、
 XGBoost、CatBoost 和最终融合尚未全部完成，不能宣称融合成绩已经提升。
 
-现有两份完整提交都在本地 `predictions/` 中；v018 另有 OOF bundle。
+现有两份完整提交都在本地 `predictions/` 中。OOF bundle 若已删除，
+可用相同配置续跑，从保留的完整折检查点重新生成。
 原版脚本永久单独保存在 `training/lightgbm_reference_cv.py`。
