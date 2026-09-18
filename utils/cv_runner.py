@@ -71,7 +71,7 @@ def parse_args(model, argv=None):
     parser.add_argument('--test-path', default='data/test.csv')
     parser.add_argument('--output-dir', default='predictions')
     parser.add_argument('--artifact-dir', default='artifacts/predictions')
-    parser.add_argument('--experiment-file', default='experiments.csv')
+    parser.add_argument('--experiment-file', default='artifacts/experiments.csv')
     parser.add_argument('--run-root', default='artifacts/runs')
     parser.add_argument('--resume', action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument('--sample-size', type=int, default=None, help='Stratified development sample; not full-data CV')

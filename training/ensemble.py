@@ -12,7 +12,7 @@ def main(argv=None):
     p.add_argument('bundles',nargs='+',help='OOF NPZ bundles from artifacts/predictions')
     p.add_argument('--output-dir',default='predictions')
     p.add_argument('--artifact-dir',default='artifacts/predictions')
-    p.add_argument('--experiment-file',default='experiments.csv')
+    p.add_argument('--experiment-file',default='artifacts/experiments.csv')
     p.add_argument('--seed',type=int,default=20260917)
     a=p.parse_args(argv)
     bundles=load_bundles(a.bundles)

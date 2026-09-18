@@ -7,7 +7,7 @@
 结合数字位、多尺度分箱、频率和目标编码，保存 OOF 后再选择单模型或融合。
 
 本地完整训练结果写入
-`experiments.csv`；公开榜成绩只有实际提交后才能确认。项目不会自动向 Kaggle 提交。
+`artifacts/experiments.csv`；公开榜成绩只有实际提交后才能确认。项目不会自动向 Kaggle 提交。
 
 ## 安装与数据
 
@@ -189,9 +189,12 @@ artifacts/runs/<model>_<signature>/
 
 完整 CV 结束后，文件使用相同前缀，分别保存：
 
+
+代码统一管理生成文件：提交 CSV 写入 `predictions/`，元数据和 OOF 写入 `artifacts/predictions/`，实验记录写入 `artifacts/experiments.csv`，检查点和日志写入 `artifacts/runs/` 或 `artifacts/suite/`。CatBoost 自带文件日志已禁用。正在运行的旧进程保留原输出设置，新默认路径从下次启动生效。
+
 - `predictions/*.csv`：`id,Will_Buy_EV`，可提交 Kaggle。
 - `artifacts/predictions/*.npz`：训练 ID、标签、OOF 预测、fold ID、测试 ID、测试预测，供融合使用。
-- `artifacts/predictions/*.json`：配置、成绩和融合报告；`experiments.csv` 追加兼容不同模型字段的记录。
+- `artifacts/predictions/*.json`：配置、成绩和融合报告；`artifacts/experiments.csv` 追加兼容不同模型字段的记录。
 
 OOF bundle 缺行、重复 ID、标签不一致、折不一致或概率非法都会被拒绝。
 旧版本只保存提交 CSV，不能凭空补出 OOF，需要重新训练才可用于本地验证融合。
@@ -237,7 +240,7 @@ python -m unittest discover -s tests -v
 | XGBoost，原业务特征 | 0.9416650 |
 | LightGBM，原业务特征 | 0.9417209 |
 
-新增完整训练的实际成绩见 `experiments.csv` 和 Suite 的 `result.json`。
+新增完整训练的实际成绩见 `artifacts/experiments.csv` 和 Suite 的 `result.json`。
 
 ## 2026-09-17 本地验证与交接
 

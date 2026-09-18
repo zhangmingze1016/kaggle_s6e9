@@ -8,7 +8,7 @@ cross-validation pipeline. Features include digits, multiscale bins, frequency
 encoding and target encoding. Out-of-fold (OOF) predictions support comparisons
 between individual models and blends.
 
-Full local results are recorded in `experiments.csv`. Public leaderboard scores
+Full local results are recorded in `artifacts/experiments.csv`. Public leaderboard scores
 require an actual submission. This project does not submit to Kaggle automatically.
 
 ## Installation and data
@@ -209,9 +209,12 @@ may create another submission version.
 
 After full CV, files share a prefix but are stored separately:
 
+
+Generated files are routed by the code: submission CSVs go to `predictions/`, metadata and OOF bundles to `artifacts/predictions/`, experiment records to `artifacts/experiments.csv`, and checkpoints/logs to `artifacts/runs/` or `artifacts/suite/`. CatBoost file logging is disabled. Already-running processes keep their old output settings; these defaults apply on the next launch.
+
 - `predictions/*.csv`: `id,Will_Buy_EV`, ready for Kaggle submission.
 - `artifacts/predictions/*.npz`: training IDs, labels, OOF predictions, fold IDs, test IDs and predictions.
-- `artifacts/predictions/*.json`: configuration, scores and blend reports. `experiments.csv` also receives a record,
+- `artifacts/predictions/*.json`: configuration, scores and blend reports. `artifacts/experiments.csv` also receives a record,
   accommodating different model fields.
 
 Incomplete bundles, duplicate IDs, inconsistent labels/folds and invalid
@@ -265,7 +268,7 @@ Historical full-data baselines, whose settings may differ from newer experiments
 | XGBoost, business features | 0.9416650 |
 | LightGBM, business features | 0.9417209 |
 
-New full-data results are recorded in `experiments.csv` and suite `result.json` files.
+New full-data results are recorded in `artifacts/experiments.csv` and suite `result.json` files.
 
 ## Local validation and handoff — 2026-09-17
 

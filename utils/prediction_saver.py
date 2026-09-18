@@ -9,15 +9,17 @@ import pandas as pd
 
 
 class PredictionSaver:
-    def __init__(self, output_dir='predictions', experiment_file='experiments.csv',
+    def __init__(self, output_dir='predictions', experiment_file='artifacts/experiments.csv',
                  artifact_dir='artifacts/predictions'):
         self.output_dir=Path(output_dir)
         self.output_dir.mkdir(parents=True,exist_ok=True)
         self.artifact_dir=Path(artifact_dir)
-        if self.artifact_dir.resolve() == self.output_dir.resolve():
-            raise ValueError('artifact_dir must differ from output_dir')
+        if self.artifact_dir.resolve().is_relative_to(self.output_dir.resolve()):
+            raise ValueError('artifact_dir must be outside output_dir')
         self.artifact_dir.mkdir(parents=True,exist_ok=True)
         self.experiment_file=Path(experiment_file)
+        if self.experiment_file.resolve().is_relative_to(self.output_dir.resolve()):
+            raise ValueError('experiment_file must be outside output_dir')
         self.experiment_file.parent.mkdir(parents=True,exist_ok=True)
 
     def artifact_path(self, submission, suffix):

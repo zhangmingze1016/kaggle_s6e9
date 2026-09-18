@@ -126,7 +126,7 @@ def parse_args():
     parser.add_argument("--test-path", default="data/test.csv")
     parser.add_argument("--output-dir", default="predictions")
     parser.add_argument("--artifact-dir", default="artifacts/predictions")
-    parser.add_argument("--experiment-file", default="experiments.csv")
+    parser.add_argument("--experiment-file", default="artifacts/experiments.csv")
     return parser.parse_args()
 
 
