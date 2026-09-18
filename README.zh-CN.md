@@ -365,3 +365,13 @@ python -m training.encoding_trial
 只训练一个候选：将 strong LightGBM 的目标编码内部交叉验证由 5 折增加到 10 折，包括收入邻域编码。外层五折、划分种子 42、模型种子 42、特征和模型参数保持不变。每条训练样本的编码统计使用其外层训练折的 90%，原来为 80%；验证和测试编码仍只使用外层训练标签。目的是检验降低编码噪声及训练与预测阶段统计量差异是否有效，目前尚未证实提升。
 
 命令复用 v020、v027 已保存的 OOF，不重训基准，结束后报告整体与逐折 AUC 差值。提交 CSV 放在 `predictions/`，模型产物放在 `artifacts/predictions/`，比较报告放在 `artifacts/encoding_trial/<run_signature>/comparison.json`。不自动融合、不替换基准，完整训练由用户运行。此前 60,000 行窗口实验五折均退步，当前配置不升级为全量实验；由于窗口密度随样本量变化，这不代表所有窗口方法均无效。
+
+## CatBoost 差异化实验
+
+```bash
+python -m training.diversity_trial
+```
+
+内部 10 折编码实验 v032 的 OOF 为 0.94610982，比 v020 低 0.00001553，不升级为基准。这次更换模型结构：CatBoost 深度 7、最多 5,000 轮、学习率 0.03、L2 正则 10、特征采样 0.8，并使用已经有效的多尺度、三重目标编码、收入邻域特征。历史 CatBoost 实验使用旧特征，不能代表这套组合。外层仍为 seed=42 五折，内部编码恢复 5 折。这是模型差异化实验，不是单参数消融，也尚未证实提升；CPU 训练可能比 LightGBM 慢。
+
+命令只训练候选，复用 v027，自动比较单模型与预先固定的「80% v027 + 20% 候选」概率融合，并报告逐折差值。不搜索权重、不生成融合提交。候选 CSV 放在 `predictions/`，元数据和 OOF 放在 `artifacts/predictions/`，报告放在 `artifacts/diversity_trial/<run_signature>/comparison.json`。单模型较弱也可能互补，但必须看到固定融合的改善，相关性下降本身不代表有效。

@@ -401,3 +401,13 @@ python -m training.encoding_trial
 Runs one full-data strong LightGBM candidate with inner target-encoding CV increased from 5 to 10, including income-neighborhood cross-fitting. The outer five folds, split seed 42, model seed 42, features and model settings remain unchanged. Each encoded training row uses statistics from 90% instead of 80% of its outer training fold; validation/test encodings still use only outer-training labels. This tests reduced encoding noise and training/inference support mismatch; improvement is not established.
 
 The command reuses saved v020/v027 OOF references instead of retraining them, then reports overall and per-fold AUC deltas. Submission CSV goes to `predictions/`, model artifacts to `artifacts/predictions/`, and the comparison to `artifacts/encoding_trial/<run_signature>/comparison.json`. There is no automatic blending or baseline replacement. Full training is user-initiated. The 60,000-row window experiment lost on all five folds; its current configuration is not promoted. Sample-dependent density means that result does not rule out all window methods.
+
+## CatBoost diversity trial
+
+```bash
+python -m training.diversity_trial
+```
+
+The inner-CV-10 trial (v032) scored 0.94610982 OOF, below v020 by 0.00001553, and is not promoted. This next experiment changes model family: depth-7 CatBoost, 5,000 maximum iterations, learning rate 0.03, L2 10, and feature sampling 0.8. It uses the successful multiscale/triple-TE/income-neighborhood features, unlike the historical legacy-feature CatBoost runs. Outer CV remains five folds with seed 42; inner encoding CV returns to 5. This is a model-diversity experiment, not a single-parameter ablation or a proven improvement. CPU training may take longer than LightGBM.
+
+The command trains only the candidate, compares it against saved v027, and diagnoses a predeclared 80% v027 / 20% candidate probability blend, including per-fold deltas. It does not search blend weights or export a blend submission. The candidate CSV is saved under `predictions/`, its metadata/OOF under `artifacts/predictions/`, and the comparison under `artifacts/diversity_trial/<run_signature>/comparison.json`. A weaker single model is useful only if complementary errors improve the fixed blend; reduced correlation alone is insufficient.
